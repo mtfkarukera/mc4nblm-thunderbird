@@ -227,6 +227,19 @@ notebooklm-magic-clipper/
 
 ## 📋 Changelog récent
 
+### v5.4.1
+- fix(serializer): algorithme de rétention débruité pour bypass
+  Readability sur documents structurés (DSFR / Légifrance)
+  — double signal texte+structure (logique AND) sur dénominateur
+  débruité. Résout la troncation silencieuse des documents
+  juridiques longs. (#sprint-5.1)
+- fix(serializer): remplacement de `innerHTML` par `DOMParser`
+  dans `_tryReadability()` — conformité AMO complète.
+- fix(serializer): enrichissement de `_cleanDomFallback()` avec
+  les balises sémantiques (`header`, `footer`, `nav`, `aside`)
+  et les classes DSFR (`.fr-header`, `.fr-footer`, `.fr-sidemenu`,
+  `.fr-nav`).
+
 ### v5.4.0 — Mode Sombre Natif (Sprint 5)
 - feat(ui) : Support automatique du mode sombre (Dark Mode) en fonction des préférences du système ou du navigateur. Implémentation 100% CSS (prefers-color-scheme) pour garantir zéro impact sur les performances et conserver la fluidité du glassmorphism.
 
@@ -331,4 +344,4 @@ notebooklm-magic-clipper/
 ---
 
 *Projet développé selon la méthodologie **Spec-Driven Development (SDD)**.*
-*Version 5.4.0 — Mai 2026*
+*Version 5.4.1 — Mai 2026*
