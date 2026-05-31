@@ -157,8 +157,9 @@ window.ClipperSerializer = {
   // =================================================================
 
   /**
-   * Readability.parse() sur un clone du document.
-   * (Skill readability-content-extractor §2 — Règle d'or du clonage)
+   * Readability.parse() avec algorithme de vérification de rétention.
+   * Mesure le taux de perte sur un dénominateur préalablement débruité
+   * pour éviter les faux positifs sur les sites à forte composante UI.
    */
   _tryReadability() {
     try {
@@ -166,12 +167,57 @@ window.ClipperSerializer = {
         console.warn("[Serializer V9] Readability.js non chargé");
         return null;
       }
-      // CRITIQUE : cloneNode(true) pour ne pas détruire l'interface utilisateur
+
+      // 1. Dénominateur nettoyé : exclusion de l'UI et de la navigation
+      const NOISE_SELECTORS = 'header, footer, nav, [role="navigation"], [role="banner"], [role="contentinfo"], aside, .sidebar, #sidebar, .fr-header, .fr-footer, .fr-sidemenu, .fr-nav';
+      const bodyCloneForMetrics = document.body.cloneNode(true);
+      bodyCloneForMetrics.querySelectorAll(NOISE_SELECTORS).forEach(el => el.remove());
+
+      // CRITIQUE : textContent (pas innerText) — fonctionne sur les nœuds détachés du DOM
+      const originalTextLength = (bodyCloneForMetrics.textContent || '').trim().length;
+      const originalNodes = bodyCloneForMetrics.querySelectorAll(
+        'p, li, td, th, h1, h2, h3, h4, h5, h6, blockquote'
+      ).length;
+
+      // 2. Exécution de Readability sur le vrai document (cloné)
       const documentClone = document.cloneNode(true);
-      const reader = new Readability(documentClone, {
-        charThreshold: 100
-      });
-      return reader.parse();
+      const reader = new Readability(documentClone, { charThreshold: 100 });
+      const article = reader.parse();
+
+      if (!article || !article.content) return null;
+
+      // 3. Métriques du résultat Readability
+      const extractedTextLength = (article.textContent || '').trim().length;
+      const parsedForCount = new DOMParser().parseFromString(article.content, 'text/html');
+      const extractedNodes = parsedForCount.body.querySelectorAll(
+        'p, li, td, th, h1, h2, h3, h4, h5, h6, blockquote'
+      ).length;
+
+      // 4. Calcul des taux de rétention sur le dénominateur propre
+      const textRetention = originalTextLength > 0 ? extractedTextLength / originalTextLength : 1;
+      const nodeRetention = originalNodes > 0 ? extractedNodes / originalNodes : 1;
+
+      // 5. Arbitrage strict (Logique AND)
+      // Les deux signaux doivent échouer simultanément pour éviter les faux positifs.
+      const isTruncatedByText = originalTextLength > 2000 && textRetention < 0.30;
+      const isTruncatedByStructure = originalNodes > 10 && nodeRetention < 0.25;
+
+      if (isTruncatedByText && isTruncatedByStructure) {
+        console.log(
+          `[Serializer V9] ⏭️ Readability écartée — texte: ` +
+          `${Math.round(textRetention * 100)}%, structure: ` +
+          `${Math.round(nodeRetention * 100)}% (dénominateur débruité) → fallback DOM`
+        );
+        return null;
+      }
+
+      console.log(
+        `[Serializer V9] ✅ Readability validée — texte: ` +
+        `${Math.round(textRetention * 100)}%, structure: ` +
+        `${Math.round(nodeRetention * 100)}%`
+      );
+      return article;
+
     } catch (e) {
       console.warn("[Serializer V9] Erreur Readability:", e.message);
       return null;
@@ -331,7 +377,7 @@ window.ClipperSerializer = {
   },
 
   /**
-   * Nettoyage DOM minimal pour le mode Fallback.
+   * Nettoyage DOM étendu pour le mode Fallback (incluant Légifrance / DSFR).
    */
   _cleanDomFallback(clone) {
     const selectors = [
@@ -341,12 +387,17 @@ window.ClipperSerializer = {
       'input', 'select', 'textarea', 'form',
       '#tarteaucitronRoot', '#tarteaucitron',
       '#onetrust-consent-sdk', '#CybotCookiebotDialog',
-      '#cookie-banner', '.cookie-notice'
+      '#cookie-banner', '.cookie-notice',
+      // Balises sémantiques de navigation et classes DSFR (Légifrance)
+      'header', 'footer', 'nav', 'aside',
+      '.fr-header', '.fr-footer', '.fr-sidemenu', '.fr-nav'
     ];
     selectors.forEach(sel => {
       try { clone.querySelectorAll(sel).forEach(el => el.remove()); }
       catch (e) { /* sélecteur invalide */ }
     });
+
+    // Nettoyage des éléments masqués
     clone.querySelectorAll('[style]').forEach(el => {
       if (/display\s*:\s*none/i.test(el.getAttribute('style') || '')) el.remove();
     });
