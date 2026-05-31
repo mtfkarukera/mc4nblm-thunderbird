@@ -35,7 +35,7 @@ Capturez le contenu de n'importe quelle page web et importez-le directement dans
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | **Vitesse** | ~3-5s | ~0.5s | **~0.1s** | ~1s | ~1-3s | ~0.5s | **~0.1s** |
 | **Synchronisable** | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ |
-| **Tables** | ❌ | ✅ Pipe-delimited | ✅ Scraping | ❌ Image | ❌ | ✅ Texte brut | ✅ Natif |
+| **Tables** | ✅ flattenTable | ✅ Pipe-delimited | ✅ Scraping | ❌ Image | ❌ | ✅ Texte brut | ✅ Natif |
 | **Images** | ✅ Data URI | ❌ | ✅ Scraping | ✅ Viewport | ✅ Original | ❌ | ✅ Natif |
 | **Pages protégées** | ✅ | ✅ | ❌ Paywall | ✅ | ✅ | ✅ | ✅ |
 | **Téléchargement** | ✅ .pdf | ✅ .md | ❌ | ❌ | ❌ | ❌ | ❌ |
@@ -222,10 +222,23 @@ notebooklm-magic-clipper/
 | Firefox ne supporte pas `service_worker` | `background.scripts` + `"type": "module"` |
 | Upload PDF ignoré | **Protocole resumable** 3 étapes |
 | Popup ferme le file picker | Fichiers locaux (`file://`) non supportés (restriction navigateur) |
+| Sites institutionnels à dominante tabulaire | **Fallback DOM automatique** : signal tabulaire dans `_tryReadability()` — ratio tables conservées |
 
 ---
 
 ## 📋 Changelog récent
+
+### v5.5.1 — Fallback tabulaire automatique
+- fix(serializer): 3e signal de rétention dans `_tryReadability()`
+  — fallback DOM déclenché automatiquement si Readability supprime
+  plus de 50% des tables (originalTables >= 2 && tableRetention < 0.50)
+- Signal indépendant des signaux texte+structure (logique ||)
+- Zéro hardcoding de domaines — solution générique (sites
+  institutionnels, juridiques, conventions collectives...)
+- Logs enrichis : métrique tables XX% (N→M) dans les deux cas
+  (rejet et validation)
+- Fichiers modifiés : `src/content/serializer.js`, `manifest.json`,
+  `README.md`. Aucune nouvelle permission demandée.
 
 ### v5.5.0 — Tableaux riches (colspan/rowspan)
 - `pdfgenerator.js` : aplatissement colspan/rowspan dans le Custom
