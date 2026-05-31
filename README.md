@@ -227,6 +227,14 @@ notebooklm-magic-clipper/
 
 ## 📋 Changelog récent
 
+### v5.5.0 — Tableaux riches (colspan/rowspan)
+- `pdfgenerator.js` : aplatissement colspan/rowspan dans le Custom
+  Walker jsPDF via algorithme flattenTable (grille 2D)
+- `mdgenerator.js` : même algorithme pour le rendu Markdown
+  pipe-delimited
+- Zéro régression sur les tableaux sans fusion
+- Lint : 0 erreur, warnings uniquement sur libs tierces (attendus)
+
 ### v5.4.1
 - fix(serializer): algorithme de rétention débruité pour bypass
   Readability sur documents structurés (DSFR / Légifrance)
@@ -344,4 +352,4 @@ notebooklm-magic-clipper/
 ---
 
 *Projet développé selon la méthodologie **Spec-Driven Development (SDD)**.*
-*Version 5.4.1 — Mai 2026*
+*Version 5.5.0 — Mai 2026*

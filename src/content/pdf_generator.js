@@ -1,5 +1,100 @@
 window.nwcpdfgen     = true;
 // pdf_generator.js — Rôle : dom-to-pdf-converter (jsPDF)
+
+/**
+ * Aplatit un tableau HTML contenant des colspan et rowspan pour produire une grille 2D.
+ * Duplication volontaire pour environnement Firefox MV3 sans bundler.
+ *
+ * @param {HTMLElement} tableNode - Nœud DOM de la table.
+ * @returns {Object} Un objet { head: string[][], body: string[][] } contenant les lignes aplaties.
+ */
+function flattenTable(tableNode) {
+  if (!tableNode) return { head: [], body: [] };
+  
+  const rows = Array.from(tableNode.querySelectorAll('tr'));
+  if (rows.length === 0) return { head: [], body: [] };
+
+  const grid = [];
+  const isHeaderRow = [];
+
+  for (let r = 0; r < rows.length; r++) {
+    const rowEl = rows[r];
+    grid[r] = grid[r] || [];
+    
+    const isHead = (rowEl.parentElement && rowEl.parentElement.tagName.toLowerCase() === 'thead')
+                 || (rowEl.querySelector('th') !== null && rowEl.querySelector('td') === null);
+    isHeaderRow[r] = isHead;
+
+    const cells = Array.from(rowEl.querySelectorAll('th, td'));
+    let col = 0;
+
+    for (let c = 0; c < cells.length; c++) {
+      const cell = cells[c];
+
+      while (grid[r][col] !== undefined) {
+        col++;
+      }
+
+      const colspan = parseInt(cell.getAttribute('colspan'), 10) || 1;
+      const rowspan = parseInt(cell.getAttribute('rowspan'), 10) || 1;
+
+      const content = cell.textContent.trim()
+                          .replace(/\n/g, ' ')
+                          .replace(/\|/g, '\\|');
+
+      grid[r][col] = content;
+
+      for (let i = 1; i < colspan; i++) {
+        grid[r][col + i] = "";
+      }
+
+      const limitRow = Math.min(r + rowspan, rows.length);
+      for (let nextR = r + 1; nextR < limitRow; nextR++) {
+        grid[nextR] = grid[nextR] || [];
+        grid[nextR][col] = "↓";
+        for (let i = 1; i < colspan; i++) {
+          grid[nextR][col + i] = "";
+        }
+      }
+
+      col += colspan;
+    }
+  }
+
+  let maxCols = 0;
+  for (let r = 0; r < grid.length; r++) {
+    if (grid[r].length > maxCols) {
+      maxCols = grid[r].length;
+    }
+  }
+
+  for (let r = 0; r < grid.length; r++) {
+    for (let c = 0; c < maxCols; c++) {
+      if (grid[r][c] === undefined) {
+        grid[r][c] = "";
+      }
+    }
+  }
+
+  const head = [];
+  const body = [];
+
+  for (let r = 0; r < grid.length; r++) {
+    if (isHeaderRow[r]) {
+      head.push(grid[r]);
+    } else {
+      body.push(grid[r]);
+    }
+  }
+
+  if (head.length === 0 && grid.length > 0) {
+    head.push(grid[0]);
+    body.shift();
+  }
+
+  return { head, body };
+}
+
 // VERSION 7 : jsPDF amélioré — images data URI, tables visuelles, contenu Readability
 //
 // Ce module reçoit un container HTML préparé par le Serializer V9
@@ -338,16 +433,7 @@ window.ClipperPDFGenerator = {
 
       // Tables
       if (tag === 'table') {
-        const head = [];
-        const body = [];
-        node.querySelectorAll('tr').forEach(row => {
-          const cells = row.querySelectorAll('th, td');
-          if (cells.length === 0) return;
-          const isHead = (row.parentElement && row.parentElement.tagName.toLowerCase() === 'thead')
-                       || (row.querySelector('th') !== null && row.querySelector('td') === null);
-          const cols = Array.from(cells).map(c => c.textContent.trim().replace(/\n/g, ' '));
-          (isHead ? head : body).push(cols);
-        });
+        const { head, body } = flattenTable(node);
         if (head.length > 0 || body.length > 0) {
           blocks.push({ type: 'table', head, body });
         }
