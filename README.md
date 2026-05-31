@@ -352,4 +352,4 @@ notebooklm-magic-clipper/
 ---
 
 *Projet développé selon la méthodologie **Spec-Driven Development (SDD)**.*
-*Version 5.5.0 — Mai 2026*
+*Version 5.5.1 — Mai 2026*

@@ -178,6 +178,7 @@ window.ClipperSerializer = {
       const originalNodes = bodyCloneForMetrics.querySelectorAll(
         'p, li, td, th, h1, h2, h3, h4, h5, h6, blockquote'
       ).length;
+      const originalTables = bodyCloneForMetrics.querySelectorAll('table').length;
 
       // 2. Exécution de Readability sur le vrai document (cloné)
       const documentClone = document.cloneNode(true);
@@ -192,21 +193,28 @@ window.ClipperSerializer = {
       const extractedNodes = parsedForCount.body.querySelectorAll(
         'p, li, td, th, h1, h2, h3, h4, h5, h6, blockquote'
       ).length;
+      const extractedTables = parsedForCount.body.querySelectorAll('table').length;
 
       // 4. Calcul des taux de rétention sur le dénominateur propre
       const textRetention = originalTextLength > 0 ? extractedTextLength / originalTextLength : 1;
       const nodeRetention = originalNodes > 0 ? extractedNodes / originalNodes : 1;
+      const tableRetention = originalTables > 0
+        ? extractedTables / originalTables
+        : 1;
 
       // 5. Arbitrage strict (Logique AND)
       // Les deux signaux doivent échouer simultanément pour éviter les faux positifs.
       const isTruncatedByText = originalTextLength > 2000 && textRetention < 0.30;
       const isTruncatedByStructure = originalNodes > 10 && nodeRetention < 0.25;
+      const isTruncatedByTables = originalTables >= 2 && tableRetention < 0.50;
 
-      if (isTruncatedByText && isTruncatedByStructure) {
+      if ((isTruncatedByText && isTruncatedByStructure) || isTruncatedByTables) {
         console.log(
           `[Serializer V9] ⏭️ Readability écartée — texte: ` +
           `${Math.round(textRetention * 100)}%, structure: ` +
-          `${Math.round(nodeRetention * 100)}% (dénominateur débruité) → fallback DOM`
+          `${Math.round(nodeRetention * 100)}%, tables: ` +
+          `${Math.round(tableRetention * 100)}%` +
+          ` (${originalTables}→${extractedTables}) → fallback DOM`
         );
         return null;
       }
@@ -214,7 +222,8 @@ window.ClipperSerializer = {
       console.log(
         `[Serializer V9] ✅ Readability validée — texte: ` +
         `${Math.round(textRetention * 100)}%, structure: ` +
-        `${Math.round(nodeRetention * 100)}%`
+        `${Math.round(nodeRetention * 100)}%, tables: ` +
+        `${Math.round(tableRetention * 100)}%`
       );
       return article;
 
