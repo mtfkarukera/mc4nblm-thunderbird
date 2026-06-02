@@ -8,6 +8,17 @@ import { createPersonalNotebook, uploadPersonalSource, addTextSource, addUrlSour
  */
 const MAX_BASE64_SIZE_BYTES = 200 * 1024 * 1024 * 1.37;
 
+const BINARY_MIME_PREFIXES = [
+  'application/pdf',
+  'audio/',
+  'video/',
+  'image/',
+  'application/msword',
+  'application/vnd.openxmlformats',
+  'application/vnd.ms-',
+  'application/epub'
+];
+
 /**
  * Modèles RegEx pour détecter et masquer les données sensibles
  * (cookies de session Google et jeton CSRF) dans les logs d'erreurs.
@@ -563,6 +574,70 @@ browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
         }).catch(() => {
             sendResponse({ directImport: false });
         });
+        return true;
+    }
+
+    if (message.action === "DETECT_MIME") {
+        (async () => {
+            const { url } = message;
+            try {
+                const resp = await fetch(url, {
+                    method: 'HEAD',
+                    signal: AbortSignal.timeout(5000)
+                });
+                if (!resp.ok) {
+                    sendResponse({ isBinary: false, mime: '' });
+                    return;
+                }
+                const mime = resp.headers.get('content-type') ?? '';
+                const isBinary = BINARY_MIME_PREFIXES.some(p => mime.startsWith(p));
+                sendResponse({ isBinary, mime });
+            } catch (e) {
+                console.warn('[MC] DETECT_MIME failed:', e?.message);
+                sendResponse({ isBinary: false, mime: '' });
+            }
+        })();
+        return true;
+    }
+
+    if (message.action === "DOWNLOAD_SELECTION_MD") {
+        (async () => {
+            const { selectionHtml, title, url, intentNote } = message;
+            try {
+                const tabs = await browser.tabs.query({
+                    active: true,
+                    currentWindow: true
+                });
+                if (!tabs.length) {
+                    sendResponse({ mdBlob: '' });
+                    return;
+                }
+                const tabId = tabs[0].id;
+
+                // Injection minimale : uniquement md_generator.js
+                // (pas de Readability ni serializer nécessaires pour un fragment HTML)
+                await injectScriptsSequentially(tabId, [
+                    'src/content/md_generator.js'
+                ]);
+
+                const results = await browser.scripting.executeScript({
+                    target: { tabId },
+                    func: (html, note) => {
+                        if (typeof window.ClipperMarkdownGenerator === 'undefined') {
+                            return '';
+                        }
+                        return window.ClipperMarkdownGenerator.generate(html, note || null);
+                    },
+                    args: [selectionHtml, intentNote ?? '']
+                });
+
+                const md = results?.[0]?.result ?? '';
+                sendResponse({ mdBlob: md });
+            } catch (e) {
+                console.warn('[MC] DOWNLOAD_SELECTION_MD failed:', e?.message);
+                sendResponse({ mdBlob: '' });
+            }
+        })();
         return true;
     }
 

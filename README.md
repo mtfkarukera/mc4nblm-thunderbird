@@ -228,6 +228,18 @@ notebooklm-magic-clipper/
 
 ## 📋 Changelog récent
 
+### v5.6.0 — Matrice Contextuelle
+- **popup.js** : YouTube → forçage URL only sur `youtube.com/watch`,
+  `youtu.be/` et `youtube.com/shorts/`
+- **popup.js + background.js** : fichier binaire direct → Import Direct
+  forcé, détection en deux étapes (extension URL + HEAD request
+  Content-Type via handler DETECT_MIME, exempt CORS depuis background.js)
+- **popup.js + background.js + md_generator.js** : téléchargement .md
+  local depuis une sélection active, sans appel API NotebookLM
+  (Blob local, handler DOWNLOAD_SELECTION_MD, DOMParser conforme AMO)
+- **Lint** : 0 erreur bloquante, 8 warnings sur libs tierces (attendus,
+  antérieurs au sprint)
+
 ### v5.5.1 — Fallback tabulaire automatique
 - fix(serializer): 3e signal de rétention dans `_tryReadability()`
   — fallback DOM déclenché automatiquement si Readability supprime
@@ -365,4 +377,4 @@ notebooklm-magic-clipper/
 ---
 
 *Projet développé selon la méthodologie **Spec-Driven Development (SDD)**.*
-*Version 5.5.1 — Mai 2026*
+*Version 5.6.0 — Juin 2026*

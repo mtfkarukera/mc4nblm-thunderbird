@@ -17,8 +17,29 @@ const uiDirectLabel = document.getElementById('direct-label');
 const uiSelectionBanner = document.getElementById('selection-banner');
 const uiSelectionPreview = document.getElementById('selection-text-preview');
 const btnClearSelection = document.getElementById('btn-clear-selection');
+const btnDownloadSelectionMd = document.getElementById('btn-download-selection-md');
 const intentInput = document.getElementById('intent-input');
 const intentCounter = document.getElementById('intent-counter');
+
+const BINARY_EXTENSIONS = new Set([
+  'pdf','mp3','mp4','wav','ogg','aac','m4a','flac','opus','amr','wma',
+  'png','jpg','jpeg','gif','bmp','webp','avif','tiff','ico','heic','heif',
+  'avi','mov','mkv','3gp','3g2','mpeg','docx','xlsx','pptx','epub','csv'
+]);
+
+function isYouTubeWatch(url) {
+  return /(?:youtube\.com\/watch|youtu\.be\/|youtube\.com\/shorts\/)/.test(url);
+}
+
+function hasBinaryExtension(url) {
+  try {
+    const path = new URL(url).pathname;
+    const ext = path.split('.').pop().toLowerCase();
+    return BINARY_EXTENSIONS.has(ext);
+  } catch {
+    return false;
+  }
+}
 
 // Variables d'état
 let currentSelectedNotebookId = null;
@@ -158,11 +179,54 @@ document.addEventListener('DOMContentLoaded', async () => {
        await browser.storage.local.remove('nwc_pending_selection');
        pendingSelection = null;
        uiSelectionBanner.classList.add('hidden');
+       if (btnDownloadSelectionMd) {
+         btnDownloadSelectionMd.style.display = 'none';
+       }
        // Restaurer le format précédent
        if (currentFormat === 'selection') {
          currentFormat = 'pdf';
          uiFormatToggle.querySelector('[data-format="pdf"]').classList.add('active');
          updateCaptureButtonLabel();
+       }
+     });
+   }
+
+   if (btnDownloadSelectionMd) {
+     btnDownloadSelectionMd.addEventListener('click', async () => {
+       if (!pendingSelection) return;
+
+       btnDownloadSelectionMd.disabled = true;
+       const originalText = btnDownloadSelectionMd.textContent;
+       btnDownloadSelectionMd.textContent = '…';
+
+       try {
+         const response = await browser.runtime.sendMessage({
+           action: 'DOWNLOAD_SELECTION_MD',
+           selectionHtml: pendingSelection.html ?? '',
+           title: pendingSelection.pageTitle ?? 'selection',
+           url: pendingSelection.pageUrl ?? '',
+           intentNote: intentInput?.value?.trim() ?? ''
+         });
+
+         if (response?.mdBlob) {
+           const blob = new Blob([response.mdBlob], { type: 'text/markdown' });
+           const blobUrl = URL.createObjectURL(blob);
+           const a = document.createElement('a');
+           a.href = blobUrl;
+           a.download = `${(pendingSelection.pageTitle ?? 'selection')
+             .replace(/[<>:"/\\|?*]/g, '').trim().substring(0, 80)}.md`;
+           a.click();
+           URL.revokeObjectURL(blobUrl);
+         } else {
+           updateStatus(t('errGenericOccurred'), 'error');
+         }
+       } catch (e) {
+         console.warn('[Popup] DOWNLOAD_SELECTION_MD failed:', e?.message);
+         updateStatus(t('errGenericOccurred'), 'error');
+       } finally {
+         btnDownloadSelectionMd.disabled = false;
+         btnDownloadSelectionMd.textContent = originalText;
+         applyI18n();
        }
      });
    }
@@ -354,41 +418,125 @@ async function detectActiveTabFileType() {
 
      const url = tabs[0].url;
 
-      // 1. Détection prioritaire Google Drive
-      if (window.ClipperUtils && window.ClipperUtils.parseDriveUrl) {
-          const driveInfo = window.ClipperUtils.parseDriveUrl(url);
-          if (driveInfo) {
-              const driveBtn = document.getElementById('btn-drive-import');
-              if (driveBtn) {
-                  driveBtn.style.display = 'flex';
-                  driveBtn.classList.remove('hidden');
+     const pdfBtn = uiFormatToggle.querySelector('[data-format="pdf"]');
+     const mdBtn = uiFormatToggle.querySelector('[data-format="md"]');
+     const urlBtn = uiFormatToggle.querySelector('[data-format="url"]');
+     const screenshotBtn = uiFormatToggle.querySelector('[data-format="screenshot"]');
 
-                  if (driveInfo.typeStr === 'file') {
-                      // Fichier hébergé sur Drive → Drive + Screenshot
-                      // (Drive pour les docs textuels, Screenshot pour le reste)
-                      uiFormatToggle.querySelectorAll('.format-btn').forEach(b => {
-                          b.classList.remove('active');
-                          if (['pdf', 'md', 'url'].includes(b.dataset.format)) {
-                              b.style.display = 'none';
-                          }
-                      });
-                  } else {
-                      // Google Workspace (Docs/Sheets/Slides) → Drive exclusif
-                      uiFormatToggle.querySelectorAll('.format-btn').forEach(b => {
-                          b.classList.remove('active');
-                          if (['pdf', 'md', 'url', 'screenshot'].includes(b.dataset.format)) {
-                              b.style.display = 'none';
-                          }
-                      });
-                  }
+     if (isYouTubeWatch(url)) {
+       pdfBtn.classList.add('btn-disabled');
+       mdBtn.classList.add('btn-disabled');
+       screenshotBtn.classList.add('btn-disabled');
+       if (btnDirectImport) {
+         btnDirectImport.classList.add('btn-disabled');
+       }
 
-                  driveBtn.classList.add("active");
-                  currentFormat = "drive";
-                  updateCaptureButtonLabel();
-                  return;
-              }
-          }
-      }
+       if (currentFormat !== 'url') {
+         uiFormatToggle.querySelectorAll('.format-btn').forEach(b => b.classList.remove('active'));
+         if (btnDirectImport) btnDirectImport.classList.remove('active');
+         urlBtn.classList.add('active');
+         currentFormat = 'url';
+         updateCaptureButtonLabel();
+       }
+       return;
+     }
+
+     if (hasBinaryExtension(url)) {
+       pdfBtn.classList.add('btn-disabled');
+       mdBtn.classList.add('btn-disabled');
+       urlBtn.classList.add('btn-disabled');
+       screenshotBtn.classList.add('btn-disabled');
+
+       const ext = new URL(url).pathname.split('.').pop().toLowerCase();
+       const label = ext.toUpperCase();
+       if (uiDirectLabel) {
+         uiDirectLabel.textContent = `${t('btnDirect')} (${label})`;
+       }
+       if (uiDirectImportSection) {
+         uiDirectImportSection.classList.remove('hidden');
+       }
+
+       if (btnDirectImport) {
+         btnDirectImport.classList.remove('btn-disabled');
+         btnDirectImport.classList.add('active');
+       }
+
+       uiFormatToggle.querySelectorAll('.format-btn').forEach(b => b.classList.remove('active'));
+
+       currentFormat = 'direct';
+       updateCaptureButtonLabel();
+       return;
+     }
+
+     // F2 étape 2 : URL sans extension connue → HEAD request MIME via background
+     try {
+       const { isBinary, mime } = await browser.runtime.sendMessage({
+         action: 'DETECT_MIME',
+         url
+       });
+       if (isBinary) {
+         pdfBtn.classList.add('btn-disabled');
+         mdBtn.classList.add('btn-disabled');
+         urlBtn.classList.add('btn-disabled');
+         screenshotBtn.classList.add('btn-disabled');
+
+         // Extraire un label lisible depuis le MIME (ex: "audio/mpeg" → "AUDIO")
+         const mimeLabel = mime.split('/')[0].toUpperCase();
+         if (uiDirectLabel) {
+           uiDirectLabel.textContent = `${t('btnDirect')} (${mimeLabel})`;
+         }
+         if (uiDirectImportSection) {
+           uiDirectImportSection.classList.remove('hidden');
+         }
+         if (btnDirectImport) {
+           btnDirectImport.classList.remove('btn-disabled');
+           btnDirectImport.classList.add('active');
+         }
+         uiFormatToggle.querySelectorAll('.format-btn').forEach(b => b.classList.remove('active'));
+         currentFormat = 'direct';
+         updateCaptureButtonLabel();
+         return;
+       }
+     } catch (e) {
+       console.warn('[Popup] DETECT_MIME message failed:', e?.message);
+       // Skip silencieux : comportement page web ordinaire
+     }
+
+     // 1. Détection prioritaire Google Drive
+     if (window.ClipperUtils && window.ClipperUtils.parseDriveUrl) {
+         const driveInfo = window.ClipperUtils.parseDriveUrl(url);
+         if (driveInfo) {
+             const driveBtn = document.getElementById('btn-drive-import');
+             if (driveBtn) {
+                 driveBtn.style.display = 'flex';
+                 driveBtn.classList.remove('hidden');
+
+                 if (driveInfo.typeStr === 'file') {
+                     // Fichier hébergé sur Drive → Drive + Screenshot
+                     // (Drive pour les docs textuels, Screenshot pour le reste)
+                     uiFormatToggle.querySelectorAll('.format-btn').forEach(b => {
+                         b.classList.remove('active');
+                         if (['pdf', 'md', 'url'].includes(b.dataset.format)) {
+                             b.style.display = 'none';
+                         }
+                     });
+                 } else {
+                     // Google Workspace (Docs/Sheets/Slides) → Drive exclusif
+                     uiFormatToggle.querySelectorAll('.format-btn').forEach(b => {
+                         b.classList.remove('active');
+                         if (['pdf', 'md', 'url', 'screenshot'].includes(b.dataset.format)) {
+                             b.style.display = 'none';
+                         }
+                     });
+                 }
+
+                 driveBtn.classList.add("active");
+                 currentFormat = "drive";
+                 updateCaptureButtonLabel();
+                 return;
+             }
+         }
+     }
 
      // 2. Fallback pour fichiers réguliers via background script
      const result = await browser.runtime.sendMessage({ action: "DETECT_FILE_TYPE", url });
@@ -485,6 +633,9 @@ async function checkPendingSelection() {
      const preview = sel.text.substring(0, 60) + (sel.text.length > 60 ? '…' : '');
      uiSelectionPreview.textContent = `"${preview}" (${wordCount})`;
      uiSelectionBanner.classList.remove('hidden');
+     if (btnDownloadSelectionMd) {
+       btnDownloadSelectionMd.style.display = '';
+     }
      
      // Basculer sur le format "selection" et griser TOUS les boutons de format
      // (la sélection ne supporte qu'un seul mode : texte source)

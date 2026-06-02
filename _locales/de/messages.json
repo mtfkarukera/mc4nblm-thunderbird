@@ -349,5 +349,8 @@
   },
   "btnClearSelectionTitle": {
     "message": "Abbrechen"
+  },
+  "btnDownloadMd": {
+    "message": "Herunterladen .md"
   }
 }

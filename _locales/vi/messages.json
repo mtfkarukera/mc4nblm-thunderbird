@@ -349,5 +349,8 @@
   },
   "btnClearSelectionTitle": {
     "message": "Hủy"
+  },
+  "btnDownloadMd": {
+    "message": "Tải xuống .md"
   }
 }

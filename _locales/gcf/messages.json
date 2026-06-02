@@ -349,5 +349,8 @@
   },
   "btnClearSelectionTitle": {
     "message": "Anilé"
+  },
+  "btnDownloadMd": {
+    "message": "Tjouyi .md"
   }
 }

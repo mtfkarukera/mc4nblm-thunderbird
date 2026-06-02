@@ -109,6 +109,13 @@ window.ClipperMarkdownGenerator = {
    * @returns {string} Document Markdown complet.
    */
   generate(container, intentNote = null) {
+    // Contexte Sélection : fragment HTML brut parsé via DOMParser (conforme AMO)
+    if (typeof container === 'string') {
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(container, 'text/html');
+      container = doc.body;
+    }
+
     console.log("[MD Gen V1] Extraction des blocs structurés...");
 
     const blocks = this._extractBlocks(container);
