@@ -38,7 +38,7 @@ Capturez le contenu de n'importe quelle page web et importez-le directement dans
 | **Tables** | ✅ flattenTable | ✅ Pipe-delimited | ✅ Scraping | ❌ Image | ❌ | ✅ Texte brut | ✅ Natif |
 | **Images** | ✅ Data URI | ❌ | ✅ Scraping | ✅ Viewport | ✅ Original | ❌ | ✅ Natif |
 | **Pages protégées** | ✅ | ✅ | ❌ Paywall | ✅ | ✅ | ✅ | ✅ |
-| **Téléchargement** | ✅ .pdf | ✅ .md | ❌ | ❌ | ❌ | ❌ | ❌ |
+| **Téléchargement** | ✅ .pdf | ✅ .md | ❌ | ❌ | ❌ | ✅ .md | ❌ |
 | **Fichiers binaires** | ❌ | ❌ | ❌ | ❌ | ✅ ~50 formats | ❌ | ❌ |
 
 ### ⚡ Formats supportés par l'Import Direct
@@ -97,8 +97,8 @@ Quand un fichier est détecté (ex: image, audio), les boutons non pertinents so
 | Type détecté | PDF | MD | URL | 📸 | ⚡ Direct | ☁️ Drive |
 | --- | --- | --- | --- | --- | --- | --- |
 | **Page web** | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ |
-| **Document (PDF, DOCX...)** | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ |
-| **Image** | ❌ | ❌ | ✅ | ✅ | ✅ | ❌ |
+| **Document (PDF, DOCX...)** | ❌ | ❌ | ✅ | ❌ | ✅ | ❌ |
+| **Image** | ❌ | ❌ | ✅ | ❌ | ✅ | ❌ |
 | **Audio / Vidéo** | ❌ | ❌ | ✅ | ❌ | ✅ | ❌ |
 | **Google Docs / Sheets / Slides** | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ |
 | **Fichier Drive hébergé** | ❌ | ❌ | ❌ | ✅ | ❌ | ✅ |
@@ -228,28 +228,14 @@ notebooklm-magic-clipper/
 
 ## 📋 Changelog récent
 
-### v5.6.1 — Fix F2 + F3
-
-- fix(popup.js): URL conservé actif sur fichiers binaires
-  (urlBtn non grisé dans hasBinaryExtension et DETECT_MIME)
-- fix(background.js + popup.js + popup.html + locales):
-  téléchargement .md sélection déplacé après import réussi
-  (showDownload: true dans STATUS_UPDATE, via DOWNLOAD_CAPTURE
-  existant — suppression du bouton bandeau et handler DOWNLOAD_SELECTION_MD)
-- i18n: 103 clés × 6 locales — 100%
-- lint: 0 erreur
+### v5.6.1 — Correctifs Matrice Contextuelle
+- **Import Direct** : le bouton URL reste disponible en parallèle sur les fichiers binaires détectés (PDF, images, audio, vidéo)
+- **Clip de sélection** : "Télécharger le .md ↓" apparaît désormais dans la zone de statut après import réussi, cohérent avec le comportement de l'import Markdown classique
 
 ### v5.6.0 — Matrice Contextuelle
-- **popup.js** : YouTube → forçage URL only sur `youtube.com/watch`,
-  `youtu.be/` et `youtube.com/shorts/`
-- **popup.js + background.js** : fichier binaire direct → Import Direct
-  forcé, détection en deux étapes (extension URL + HEAD request
-  Content-Type via handler DETECT_MIME, exempt CORS depuis background.js)
-- **popup.js + background.js + md_generator.js** : téléchargement .md
-  local depuis une sélection active, sans appel API NotebookLM
-  (Blob local, handler DOWNLOAD_SELECTION_MD, DOMParser conforme AMO)
-- **Lint** : 0 erreur bloquante, 8 warnings sur libs tierces (attendus,
-  antérieurs au sprint)
+- **YouTube** : forçage automatique du mode URL sur `youtube.com/watch`, `youtu.be/` et `youtube.com/shorts/`
+- **Import Direct** : détection binaire en deux étapes — extension URL puis requête HEAD (Content-Type) depuis le background, exempt CORS
+- **Clip de sélection** : téléchargement local du `.md` depuis une sélection clippée, disponible après import réussi
 
 ### v5.5.1 — Fallback tabulaire automatique
 - fix(serializer): 3e signal de rétention dans `_tryReadability()`
