@@ -228,6 +228,17 @@ notebooklm-magic-clipper/
 
 ## 📋 Changelog récent
 
+### v5.6.1 — Fix F2 + F3
+
+- fix(popup.js): URL conservé actif sur fichiers binaires
+  (urlBtn non grisé dans hasBinaryExtension et DETECT_MIME)
+- fix(background.js + popup.js + popup.html + locales):
+  téléchargement .md sélection déplacé après import réussi
+  (showDownload: true dans STATUS_UPDATE, via DOWNLOAD_CAPTURE
+  existant — suppression du bouton bandeau et handler DOWNLOAD_SELECTION_MD)
+- i18n: 103 clés × 6 locales — 100%
+- lint: 0 erreur
+
 ### v5.6.0 — Matrice Contextuelle
 - **popup.js** : YouTube → forçage URL only sur `youtube.com/watch`,
   `youtu.be/` et `youtube.com/shorts/`
@@ -377,4 +388,4 @@ notebooklm-magic-clipper/
 ---
 
 *Projet développé selon la méthodologie **Spec-Driven Development (SDD)**.*
-*Version 5.6.0 — Juin 2026*
+*Version 5.6.1 — Juin 2026*

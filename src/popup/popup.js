@@ -17,7 +17,6 @@ const uiDirectLabel = document.getElementById('direct-label');
 const uiSelectionBanner = document.getElementById('selection-banner');
 const uiSelectionPreview = document.getElementById('selection-text-preview');
 const btnClearSelection = document.getElementById('btn-clear-selection');
-const btnDownloadSelectionMd = document.getElementById('btn-download-selection-md');
 const intentInput = document.getElementById('intent-input');
 const intentCounter = document.getElementById('intent-counter');
 
@@ -179,54 +178,11 @@ document.addEventListener('DOMContentLoaded', async () => {
        await browser.storage.local.remove('nwc_pending_selection');
        pendingSelection = null;
        uiSelectionBanner.classList.add('hidden');
-       if (btnDownloadSelectionMd) {
-         btnDownloadSelectionMd.style.display = 'none';
-       }
        // Restaurer le format précédent
        if (currentFormat === 'selection') {
          currentFormat = 'pdf';
          uiFormatToggle.querySelector('[data-format="pdf"]').classList.add('active');
          updateCaptureButtonLabel();
-       }
-     });
-   }
-
-   if (btnDownloadSelectionMd) {
-     btnDownloadSelectionMd.addEventListener('click', async () => {
-       if (!pendingSelection) return;
-
-       btnDownloadSelectionMd.disabled = true;
-       const originalText = btnDownloadSelectionMd.textContent;
-       btnDownloadSelectionMd.textContent = '…';
-
-       try {
-         const response = await browser.runtime.sendMessage({
-           action: 'DOWNLOAD_SELECTION_MD',
-           selectionHtml: pendingSelection.html ?? '',
-           title: pendingSelection.pageTitle ?? 'selection',
-           url: pendingSelection.pageUrl ?? '',
-           intentNote: intentInput?.value?.trim() ?? ''
-         });
-
-         if (response?.mdBlob) {
-           const blob = new Blob([response.mdBlob], { type: 'text/markdown' });
-           const blobUrl = URL.createObjectURL(blob);
-           const a = document.createElement('a');
-           a.href = blobUrl;
-           a.download = `${(pendingSelection.pageTitle ?? 'selection')
-             .replace(/[<>:"/\\|?*]/g, '').trim().substring(0, 80)}.md`;
-           a.click();
-           URL.revokeObjectURL(blobUrl);
-         } else {
-           updateStatus(t('errGenericOccurred'), 'error');
-         }
-       } catch (e) {
-         console.warn('[Popup] DOWNLOAD_SELECTION_MD failed:', e?.message);
-         updateStatus(t('errGenericOccurred'), 'error');
-       } finally {
-         btnDownloadSelectionMd.disabled = false;
-         btnDownloadSelectionMd.textContent = originalText;
-         applyI18n();
        }
      });
    }
@@ -442,10 +398,9 @@ async function detectActiveTabFileType() {
      }
 
      if (hasBinaryExtension(url)) {
-       pdfBtn.classList.add('btn-disabled');
-       mdBtn.classList.add('btn-disabled');
-       urlBtn.classList.add('btn-disabled');
-       screenshotBtn.classList.add('btn-disabled');
+        pdfBtn.classList.add('btn-disabled');
+        mdBtn.classList.add('btn-disabled');
+        screenshotBtn.classList.add('btn-disabled');
 
        const ext = new URL(url).pathname.split('.').pop().toLowerCase();
        const label = ext.toUpperCase();
@@ -474,11 +429,10 @@ async function detectActiveTabFileType() {
          action: 'DETECT_MIME',
          url
        });
-       if (isBinary) {
-         pdfBtn.classList.add('btn-disabled');
-         mdBtn.classList.add('btn-disabled');
-         urlBtn.classList.add('btn-disabled');
-         screenshotBtn.classList.add('btn-disabled');
+        if (isBinary) {
+          pdfBtn.classList.add('btn-disabled');
+          mdBtn.classList.add('btn-disabled');
+          screenshotBtn.classList.add('btn-disabled');
 
          // Extraire un label lisible depuis le MIME (ex: "audio/mpeg" → "AUDIO")
          const mimeLabel = mime.split('/')[0].toUpperCase();
@@ -633,9 +587,6 @@ async function checkPendingSelection() {
      const preview = sel.text.substring(0, 60) + (sel.text.length > 60 ? '…' : '');
      uiSelectionPreview.textContent = `"${preview}" (${wordCount})`;
      uiSelectionBanner.classList.remove('hidden');
-     if (btnDownloadSelectionMd) {
-       btnDownloadSelectionMd.style.display = '';
-     }
      
      // Basculer sur le format "selection" et griser TOUS les boutons de format
      // (la sélection ne supporte qu'un seul mode : texte source)

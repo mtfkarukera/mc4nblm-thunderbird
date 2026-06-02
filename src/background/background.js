@@ -600,47 +600,6 @@ browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
         return true;
     }
 
-    if (message.action === "DOWNLOAD_SELECTION_MD") {
-        (async () => {
-            const { selectionHtml, title, url, intentNote } = message;
-            try {
-                const tabs = await browser.tabs.query({
-                    active: true,
-                    currentWindow: true
-                });
-                if (!tabs.length) {
-                    sendResponse({ mdBlob: '' });
-                    return;
-                }
-                const tabId = tabs[0].id;
-
-                // Injection minimale : uniquement md_generator.js
-                // (pas de Readability ni serializer nécessaires pour un fragment HTML)
-                await injectScriptsSequentially(tabId, [
-                    'src/content/md_generator.js'
-                ]);
-
-                const results = await browser.scripting.executeScript({
-                    target: { tabId },
-                    func: (html, note) => {
-                        if (typeof window.ClipperMarkdownGenerator === 'undefined') {
-                            return '';
-                        }
-                        return window.ClipperMarkdownGenerator.generate(html, note || null);
-                    },
-                    args: [selectionHtml, intentNote ?? '']
-                });
-
-                const md = results?.[0]?.result ?? '';
-                sendResponse({ mdBlob: md });
-            } catch (e) {
-                console.warn('[MC] DOWNLOAD_SELECTION_MD failed:', e?.message);
-                sendResponse({ mdBlob: '' });
-            }
-        })();
-        return true;
-    }
-
     if (message.action === "START_CAPTURE") {
         // Import de sélection : pipeline simplifié (texte → addTextSource)
         if (message.format === 'selection' && message.selectionData) {
@@ -678,12 +637,27 @@ browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
                     await addTextSource(finalNotebookId, sourceTitle, content, activeIndex);
 
+                    // Générer le .md de la sélection pour téléchargement local
+                    const mdContent = [
+                      `Source: ${sel.pageUrl}`,
+                      `Titre: ${sel.pageTitle}`,
+                      `Date de capture: ${new Date().toLocaleString()}`,
+                      '',
+                      '---',
+                      '',
+                      sel.text
+                    ].join('\n');
+
+                    lastCaptureData = mdContent;
+                    lastCaptureFilename = `${cleanTitle}.md`;
+                    lastCaptureFormat = 'md';
+
                     const notebookUrl = `https://notebooklm.google.com/notebook/${finalNotebookId}`;
                     notifyUI("STATUS_UPDATE", {
                         i18nKey: "statusImportedSelection",
                         status: "success",
                         linkUrl: notebookUrl,
-                        showDownload: false
+                        showDownload: true
                     });
 
                     browser.notifications.create({
