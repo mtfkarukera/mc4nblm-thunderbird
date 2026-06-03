@@ -6,8 +6,14 @@
  * Utilisé lorsqu'aucune API officielle n'est disponible (Comptes personnels).
  */
 
-/** Levée quand la structure d'une réponse RPC ne correspond plus
- *  au schéma connu — signe probable d'un changement d'API Google. */
+/**
+ * Erreur levée lorsque la structure d'une réponse RPC ne correspond plus
+ * au schéma connu — signe probable d'un changement d'API Google.
+ *
+ * @class
+ * @extends {Error}
+ * @param {string} rpcId - Identifiant RPC concerné (ex: "izAoDd", "o4cbdc").
+ */
 export class RpcApiChangedError extends Error {
     constructor(rpcId) {
         super(`L'API NotebookLM a été modifiée (RPC: ${rpcId}). Mise à jour requise.`);
@@ -16,7 +22,15 @@ export class RpcApiChangedError extends Error {
     }
 }
 
-/** Levée pour toute autre erreur RPC (réponse vide, HTTP 4xx, etc.). */
+/**
+ * Erreur levée pour toute autre erreur RPC (réponse vide, HTTP 4xx, réseau, etc.).
+ *
+ * @class
+ * @extends {Error}
+ * @param {string} rpcId   - Identifiant RPC concerné.
+ * @param {string} code    - Code d'erreur normalisé (ex: "EMPTY_RESPONSE", "HTTP_4XX").
+ * @param {string} detail  - Description textuelle de l'erreur.
+ */
 export class RpcError extends Error {
     constructor(rpcId, code, detail) {
         super(`Erreur RPC ${rpcId} [${code}] : ${detail}`);
@@ -30,6 +44,14 @@ export class RpcError extends Error {
 // 1. ENCODEUR (encoder.py)
 // ============================================
 
+/**
+ * Encode une requête RPC au format batchexecute de Google.
+ * Produit la structure triple-imbriquée attendue par l'endpoint LabsTailwindUi.
+ *
+ * @param  {string} rpcId  - Identifiant de la procédure RPC (ex: "izAoDd").
+ * @param  {Array}  params - Paramètres de la requête, sérialisés en JSON compact.
+ * @returns {Array}         - Structure [[[rpcId, jsonParams, null, "generic"]]] prête à sérialiser.
+ */
 function encodeRpcRequest(rpcId, params) {
     // JSON-encode params sans espaces (format compact comme Chrome)
     const paramsJson = JSON.stringify(params);
@@ -39,6 +61,13 @@ function encodeRpcRequest(rpcId, params) {
     return [[inner]];
 }
 
+/**
+ * Construit le corps HTTP encodé en URL pour une requête batchexecute.
+ *
+ * @param  {Array}       rpcRequest - Requête encodée par encodeRpcRequest().
+ * @param  {string|null} csrfToken  - Jeton CSRF SNlM0e (null si absent).
+ * @returns {string}                 - Body URL-encodé avec trailing &.
+ */
 function buildRequestBody(rpcRequest, csrfToken) {
     // JSON-encode the request (compact)
     const fReq = JSON.stringify(rpcRequest);
@@ -51,6 +80,12 @@ function buildRequestBody(rpcRequest, csrfToken) {
     return parts.join('&') + '&';
 }
 
+/**
+ * Construit la query string de l'URL batchexecute.
+ *
+ * @param  {string} rpcId - Identifiant de la procédure RPC.
+ * @returns {string}       - Query string prête à être concaténée à l'URL de l'endpoint.
+ */
 function buildQueryParams(rpcId) {
     return new URLSearchParams({
         'rpcids': rpcId,
@@ -61,20 +96,36 @@ function buildQueryParams(rpcId) {
 }
 
 // ============================================
-// 2. DECODEUR (decoder.py) 
+// 2. DECODEUR (decoder.py)
 // ============================================
 
 /**
- * Supprime le préfixe anti-XSSI )]}'
+ * Supprime le préfixe anti-XSSI )]}' présent en tête des réponses Google.
+ *
+ * @warning NE PAS RÉÉCRIRE sans preuve de changement d'API NotebookLM.
+ * Cette fonction parse le format propriétaire du batchexecute.
+ * Toute modification introduit un risque de régression critique
+ * sur tous les pipelines RPC.
+ *
+ * @param  {string} response - Réponse HTTP brute.
+ * @returns {string}          - Réponse sans le préfixe anti-XSSI.
  */
 function stripAntiXssi(response) {
-    return response.replace(/^\)]\}'[\r\n]+/, '');
+    return response.replace(/^\)\]}'[\r\n]+/, '');
 }
 
 /**
  * Parse le format de réponse chunké (mode rt=c).
- * Format: lignes alternées de byte_count (entier) + json_payload.
- * C'est la traduction exacte de parse_chunked_response() de decoder.py
+ * Format : lignes alternées de byte_count (entier) + json_payload.
+ * C'est la traduction exacte de parse_chunked_response() de decoder.py.
+ *
+ * @warning NE PAS RÉÉCRIRE sans preuve de changement d'API NotebookLM.
+ * Cette fonction parse le format propriétaire du batchexecute.
+ * Toute modification introduit un risque de régression critique
+ * sur tous les pipelines RPC.
+ *
+ * @param  {string} response - Réponse HTTP nettoyée (sans préfixe anti-XSSI).
+ * @returns {Array}           - Tableau de chunks JSON parsés.
  */
 function parseChunkedResponse(response) {
     if (!response || !response.trim()) return [];
@@ -116,8 +167,18 @@ function parseChunkedResponse(response) {
 }
 
 /**
- * Extrait le résultat d'un RPC ID spécifique depuis les chunks.
- * Traduction de extract_rpc_result() de decoder.py
+ * Extrait le résultat d'un RPC ID spécifique depuis les chunks décodés.
+ * Traduction de extract_rpc_result() de decoder.py.
+ *
+ * @warning NE PAS RÉÉCRIRE sans preuve de changement d'API NotebookLM.
+ * Cette fonction parse le format propriétaire du batchexecute.
+ * Toute modification introduit un risque de régression critique
+ * sur tous les pipelines RPC.
+ *
+ * @param  {Array}  chunks - Tableau de chunks produits par parseChunkedResponse().
+ * @param  {string} rpcId  - Identifiant RPC dont on cherche la réponse.
+ * @returns {any|null}      - Payload parsé du RPC, ou null si absent.
+ * @throws  {Error}         - Si le chunk contient une réponse d'erreur RPC.
  */
 function extractRpcResult(chunks, rpcId) {
     for (const chunk of chunks) {
@@ -152,22 +213,15 @@ function extractRpcResult(chunks, rpcId) {
 }
 
 /**
- * Pipeline complet de décodage : strip prefix -> parse chunks -> extract result
- * Traduction de decode_response() de decoder.py
- */
-function decodeResponse(rawResponse, rpcId) {
-    const cleaned = stripAntiXssi(rawResponse);
-    const chunks = parseChunkedResponse(cleaned);
-    return extractRpcResult(chunks, rpcId);
-}
-
-/**
  * Valide et extrait le payload utile d'une réponse batchexecute.
- * Incorpore un filet de sécurité structurel.
- * @param {string} rawResponse  — réponse brute HTTP
- * @param {string} rpcId        — ex: "izAoDd", "o4cbdc", "wXbhsf"
- * @returns {any}               — payload parsé, prêt à consommer
- * @throws {RpcApiChangedError | RpcError | Error}
+ * Incorpore un filet de sécurité structurel : toute réponse inattendue
+ * lève une RpcApiChangedError plutôt que de propager silencieusement un null.
+ *
+ * @param  {string} rawResponse  - Réponse HTTP brute du batchexecute.
+ * @param  {string} rpcId        - Identifiant RPC attendu (ex: "izAoDd", "o4cbdc", "wXbhsf").
+ * @returns {any}                 - Payload parsé, prêt à consommer.
+ * @throws  {RpcApiChangedError}  - Si la structure de la réponse ne correspond pas au schéma connu.
+ * @throws  {RpcError}            - Si la réponse est vide ou de type inattendu.
  */
 export function validateAndExtractRpcResponse(rawResponse, rpcId) {
     // Étape 1 — La réponse est-elle valide à la source ?
@@ -183,7 +237,7 @@ export function validateAndExtractRpcResponse(rawResponse, rpcId) {
     if (result === null || result === undefined) {
         // Aperçu brut sans sanitisation locale (sanitisation dans background.js uniquement)
         const preview = rawResponse.slice(0, 500);
-        console.warn(`[NotebookLM] Réponse RPC ${rpcId} — structure inattendue. Aperçu brut :`, preview);
+        console.warn(`[MC] Réponse RPC ${rpcId} — structure inattendue. Aperçu brut :`, preview);
         throw new RpcApiChangedError(rpcId);
     }
 
@@ -194,6 +248,18 @@ export function validateAndExtractRpcResponse(rawResponse, rpcId) {
 // 3. TRANSPORT (envoi HTTP)
 // ============================================
 
+/**
+ * Envoie une requête batchexecute vers l'endpoint LabsTailwindUi de NotebookLM.
+ * Récupère les cookies et le jeton CSRF depuis le stockage local MV3,
+ * encode la requête et valide la réponse via le pipeline standardisé.
+ *
+ * @param  {string} rpcId             - Identifiant de la procédure RPC (ex: "izAoDd").
+ * @param  {Array}  jsonArgs           - Arguments JSON de la requête RPC.
+ * @param  {number} [authuserIndex=0] - Index du compte Google actif (multi-compte).
+ * @returns {Promise<any>}             - Payload décodé de la réponse batchexecute.
+ * @throws  {Error}                    - Si l'authentification est absente ou HTTP 4xx/5xx.
+ * @throws  {RpcApiChangedError}       - Si la structure de la réponse est inattendue.
+ */
 export async function sendBatchExecute(rpcId, jsonArgs, authuserIndex = 0) {
     const data = await browser.storage.local.get(['nblm_personal_cookie', 'nblm_csrf']);
     if (!data.nblm_personal_cookie || !data.nblm_csrf) {
@@ -233,6 +299,15 @@ export async function sendBatchExecute(rpcId, jsonArgs, authuserIndex = 0) {
 // 4. FACADES MÉTIER
 // ============================================
 
+/**
+ * Liste tous les carnets NotebookLM du compte personnel actif.
+ * Utilise le RPC wXbhsf de notebooklm-py.
+ *
+ * @param  {number} [authuserIndex=0]  - Index du compte Google actif.
+ * @returns {Promise<Array<{id: string, title: string}>>} - Tableau de carnets {id, title}.
+ * @throws  {RpcApiChangedError} - Si la structure RPC a changé.
+ * @throws  {Error}              - Si l'authentification est absente.
+ */
 export async function listPersonalNotebooks(authuserIndex = 0) {
     const rpcId = "wXbhsf";
     
@@ -240,7 +315,7 @@ export async function listPersonalNotebooks(authuserIndex = 0) {
     const result = await sendBatchExecute(rpcId, [null, 1, null, [2]], authuserIndex);
     
     if (!result || !Array.isArray(result)) {
-        console.warn("[NotebookLM RPC] Réponse inattendue pour LIST_NOTEBOOKS:", result);
+        console.warn('[MC] Réponse inattendue pour LIST_NOTEBOOKS:', result);
         return [];
     }
     
@@ -266,12 +341,22 @@ export async function listPersonalNotebooks(authuserIndex = 0) {
     }
     
     if (notebooks.length === 0) {
-       console.warn("[NotebookLM RPC] Parsing échoué. Structure brute:", JSON.stringify(result).substring(0, 2000));
+       console.warn('[MC] Parsing carnets échoué. Structure brute:', JSON.stringify(result).substring(0, 2000));
     }
     
     return notebooks;
 }
 
+/**
+ * Crée un nouveau carnet NotebookLM vide pour le compte personnel actif.
+ * Utilise le RPC CCqFvf de notebooklm-py.
+ *
+ * @param  {string} title             - Titre du carnet à créer.
+ * @param  {number} [authuserIndex=0] - Index du compte Google actif.
+ * @returns {Promise<string>}          - Identifiant unique du carnet créé.
+ * @throws  {Error}                    - Si l'ID du carnet ne peut pas être extrait de la réponse.
+ * @throws  {RpcApiChangedError}       - Si la structure RPC a changé.
+ */
 export async function createPersonalNotebook(title, authuserIndex = 0) {
     // RPC ID: CCqFvf (de notebooklm-py)
     const rpcId = "CCqFvf";
@@ -292,9 +377,13 @@ export async function createPersonalNotebook(title, authuserIndex = 0) {
  * Utilise le RPC izAoDd (ADD_SOURCE — Text) de notebooklm-py.
  * Pas besoin de protocole resumable : injection directe en une seule requête.
  *
- * @param {string} notebookId - ID du carnet cible.
- * @param {string} title - Titre de la source (affiché dans NotebookLM).
- * @param {string} content - Contenu textuel/Markdown à injecter.
+ * @param  {string} notebookId          - ID du carnet cible.
+ * @param  {string} title               - Titre de la source (affiché dans NotebookLM).
+ * @param  {string} content             - Contenu textuel/Markdown à injecter.
+ * @param  {number} [authuserIndex=0]   - Index du compte Google actif.
+ * @returns {Promise<true>}              - Résout à true si l'ajout a réussi.
+ * @throws  {RpcApiChangedError}         - Si la structure RPC a changé.
+ * @throws  {Error}                      - Si l'authentification est absente ou HTTP 4xx/5xx.
  */
 export async function addTextSource(notebookId, title, content, authuserIndex = 0) {
     
@@ -309,12 +398,7 @@ export async function addTextSource(notebookId, title, content, authuserIndex = 
         null,
     ];
     
-    const result = await sendBatchExecute(rpcId, params, authuserIndex);
-    
-    if (result) {
-        console.log("[NotebookLM RPC] \u2705 Source texte ajoutée.");
-    }
-    
+    await sendBatchExecute(rpcId, params, authuserIndex);
     return true;
 }
 
@@ -323,8 +407,12 @@ export async function addTextSource(notebookId, title, content, authuserIndex = 
  * NotebookLM scrape et indexe la page lui-même.
  * Utilise le RPC izAoDd (ADD_SOURCE — URL) de notebooklm-py.
  *
- * @param {string} notebookId - ID du carnet cible.
- * @param {string} url - URL complète de la page web à importer.
+ * @param  {string} notebookId          - ID du carnet cible.
+ * @param  {string} url                 - URL complète de la page web à importer.
+ * @param  {number} [authuserIndex=0]   - Index du compte Google actif.
+ * @returns {Promise<true>}              - Résout à true si l'ajout a réussi.
+ * @throws  {RpcApiChangedError}         - Si la structure RPC a changé.
+ * @throws  {Error}                      - Si l'authentification est absente ou HTTP 4xx/5xx.
  */
 export async function addUrlSource(notebookId, url, authuserIndex = 0) {
     
@@ -339,24 +427,23 @@ export async function addUrlSource(notebookId, url, authuserIndex = 0) {
         null,
     ];
     
-    const result = await sendBatchExecute(rpcId, params, authuserIndex);
-    
-    if (result) {
-        console.log("[NotebookLM RPC] \u2705 Source URL ajoutée.");
-    }
-    
+    await sendBatchExecute(rpcId, params, authuserIndex);
     return true;
 }
 
 /**
  * Ajoute une source Google Drive (Docs, Sheets, Slides) directement dans NotebookLM.
  * Utilise l'ID du fichier pur pour que NotebookLM crée un lien synchronisable natif.
- * Utilise le RPC izAoDd avec le payload typique pour Drive (Slot 0).
+ * Utilise le RPC izAoDd avec le payload direct 11 éléments (PAS le wrapper 8-slots).
  *
- * @param {string} notebookId - ID du carnet cible.
- * @param {string} fileId - ID du fichier Google Drive extrait de l'URL.
- * @param {string} mimeType - Type MIME (ex: application/vnd.google-apps.document).
- * @param {string} title - Titre du document.
+ * @param  {string} notebookId          - ID du carnet cible.
+ * @param  {string} fileId              - ID du fichier Google Drive extrait de l'URL.
+ * @param  {string} mimeType            - Type MIME (ex: application/vnd.google-apps.document).
+ * @param  {string} title               - Titre du document.
+ * @param  {number} [authuserIndex=0]   - Index du compte Google actif.
+ * @returns {Promise<true>}              - Résout à true si l'ajout a réussi.
+ * @throws  {RpcApiChangedError}         - Si la structure RPC a changé.
+ * @throws  {Error}                      - Si l'authentification est absente ou HTTP 4xx/5xx.
  */
 export async function addDriveSource(notebookId, fileId, mimeType, title, authuserIndex = 0) {
     const rpcId = "izAoDd";
@@ -379,12 +466,7 @@ export async function addDriveSource(notebookId, fileId, mimeType, title, authus
         [1, null, null, null, null, null, null, null, null, null, [1]]
     ];
     
-    const result = await sendBatchExecute(rpcId, params, authuserIndex);
-    
-    if (result) {
-        console.log("[NotebookLM RPC] ✅ Source Google Drive ajoutée.");
-    }
-    
+    await sendBatchExecute(rpcId, params, authuserIndex);
     return true;
 }
 
@@ -397,8 +479,12 @@ export async function addDriveSource(notebookId, fileId, mimeType, title, authus
  * Source : notebooklm-py _sources.py::_add_youtube_source()
  * L'URL va à la position [7] dans un tableau de 11 éléments (vs [2] sur 8 pour URL).
  *
- * @param {string} notebookId - ID du carnet cible.
- * @param {string} url - URL YouTube complète (youtube.com/watch?v=... ou youtu.be/...).
+ * @param  {string} notebookId          - ID du carnet cible.
+ * @param  {string} url                 - URL YouTube complète (youtube.com/watch?v=... ou youtu.be/...).
+ * @param  {number} [authuserIndex=0]   - Index du compte Google actif.
+ * @returns {Promise<true>}              - Résout à true si l'ajout a réussi.
+ * @throws  {RpcApiChangedError}         - Si la structure RPC a changé.
+ * @throws  {Error}                      - Si l'authentification est absente ou HTTP 4xx/5xx.
  */
 export async function addYouTubeSource(notebookId, url, authuserIndex = 0) {
     
@@ -412,15 +498,23 @@ export async function addYouTubeSource(notebookId, url, authuserIndex = 0) {
         [1, null, null, null, null, null, null, null, null, null, [1]],
     ];
     
-    const result = await sendBatchExecute(rpcId, params, authuserIndex);
-    
-    if (result) {
-        console.log("[NotebookLM RPC] \u2705 Source YouTube ajoutée.");
-    }
-    
+    await sendBatchExecute(rpcId, params, authuserIndex);
     return true;
 }
 
+/**
+ * Upload un PDF encodé en Base64 Data URI vers un carnet NotebookLM
+ * via le protocole d'upload resumable en 3 étapes (register → start → finalize).
+ *
+ * @param  {string}      notebookId          - ID du carnet cible.
+ * @param  {string}      pdfDataUri           - PDF encodé en Data URI Base64 (data:application/pdf;base64,...).
+ * @param  {string|null} [customTitle=null]   - Titre personnalisé du fichier (sans extension). Fallback : date ISO.
+ * @param  {number}      [authuserIndex=0]   - Index du compte Google actif.
+ * @returns {Promise<true>}                   - Résout à true si l'upload est terminé.
+ * @throws  {Error}                           - Si l'authentification est absente, si SOURCE_ID est manquant,
+ *                                              ou si x-goog-upload-url est absent de la réponse serveur.
+ * @throws  {RpcApiChangedError}              - Si la structure RPC de l'étape d'enregistrement a changé.
+ */
 export async function uploadPersonalSource(notebookId, pdfDataUri, customTitle = null, authuserIndex = 0) {
     
     const data = await browser.storage.local.get(['nblm_personal_cookie', 'nblm_csrf']);
@@ -461,7 +555,7 @@ export async function uploadPersonalSource(notebookId, pdfDataUri, customTitle =
     // Extraire le SOURCE_ID de la réponse (structure imbriquée: [[[[id]]]] ou similaire)
     const sourceId = extractFirstString(registerResult);
     if (!sourceId) {
-        throw new Error("\u00c9chec enregistrement source: impossible d'obtenir SOURCE_ID.");
+        throw new Error("Échec enregistrement source: impossible d'obtenir SOURCE_ID.");
     }
 
     // ╔════════════════════════════════════════════════════════╗
@@ -499,7 +593,7 @@ export async function uploadPersonalSource(notebookId, pdfDataUri, customTitle =
     
     const uploadUrl = startResponse.headers.get('x-goog-upload-url');
     if (!uploadUrl) {
-        throw new Error("\u00c9chec: pas de x-goog-upload-url dans la r\u00e9ponse du serveur.");
+        throw new Error("Échec: pas de x-goog-upload-url dans la réponse du serveur.");
     }
 
     // ╔════════════════════════════════════════════════════════╗
@@ -526,13 +620,15 @@ export async function uploadPersonalSource(notebookId, pdfDataUri, customTitle =
         throw new Error(`Échec upload fichier: HTTP ${finalizeResponse.status}`);
     }
     
-    console.log(`[NotebookLM RPC] \u2705 Upload termin\u00e9 (${Math.round(fileSize / 1024)} Ko).`);
     return true;
 }
 
 /**
- * Utilitaire : extraire la première string d'une structure imbriquée
- * (Pour parser le SOURCE_ID depuis [[[[id]]]] ou [[[id]]] etc.)
+ * Extraie récursivement la première string d'une structure imbriquée de tableaux.
+ * Utilisé pour parser le SOURCE_ID depuis [[[[id]]]] ou [[[id]]] etc.
+ *
+ * @param  {any} data - Structure imbriquée (string, Array, ou autre).
+ * @returns {string|null} - Première string trouvée, ou null si aucune.
  */
 function extractFirstString(data) {
     if (typeof data === 'string') return data;
@@ -541,4 +637,3 @@ function extractFirstString(data) {
     }
     return null;
 }
-

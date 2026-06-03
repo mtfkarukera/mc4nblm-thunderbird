@@ -36,8 +36,11 @@ const SENSITIVE_PATTERNS = [
 
 /**
  * Purge un message d'erreur de toute donnée d'authentification sensible.
- * @param {string|any} message - Le message d'erreur brut
- * @returns {string} - Le message d'erreur sécurisé
+ * Applique une liste de patterns RegEx sur le message brut et remplace
+ * les occurrences par "[REDACTED]" avant tout logging.
+ *
+ * @param  {string|any} message - Le message d'erreur brut (converti en string si nécessaire).
+ * @returns {string}             - Le message d'erreur assaini, sans token ni cookie.
  */
 function sanitizeErrorMessage(message) {
     if (typeof message !== "string") {
@@ -50,71 +53,6 @@ function sanitizeErrorMessage(message) {
     );
 }
 
-/**
- * Interface générique et sécurisée pour effectuer tout appel RPC ou processus asynchrone délicat.
- * Intercepte les erreurs pour ne jamais exposer de données sensibles tout en notifiant l'utilisateur.
- * @param {Function} rpcFn - Fonction asynchrone à isoler (reçoit notebookId en argument)
- * @param {string} notebookId - ID du carnet ciblé
- * @param {Function} sendResponse - Le callback de messagerie Firefox (MV3)
- */
-async function safeRpcCall(rpcFn, notebookId, sendResponse) {
-    try {
-        const result = await rpcFn(notebookId);
-        sendResponse({ status: "success", data: result });
-    } catch (err) {
-
-        const rawMessage = err.message || "";
-
-        // Cas 1 : L'API Google a changé de structure
-        if (err instanceof RpcApiChangedError) {
-            console.error(`[NotebookLM][API_CHANGED] RPC: ${err.rpcId}`);
-            sendResponse({
-                status: "error",
-                i18nKey: "apiChanged",
-                code: "API_CHANGED"
-            });
-
-            // Cas 2 : Session expirée (cookies périmés HTTP 401/403)
-        } else if (rawMessage.includes("401") || rawMessage.includes("403")) {
-            console.warn(`[NotebookLM][AUTH_EXPIRED]`);
-            await browser.storage.local.remove(['nblm_personal_cookie', 'nblm_csrf']).catch(() => { });
-            sendResponse({
-                status: "error",
-                i18nKey: "sessionExpired",
-                code: "AUTH_EXPIRED"
-            });
-
-            // Cas 3 : Upload resumable — URL de session absente
-        } else if (rawMessage.includes("x-goog-upload-url")) {
-            console.error(`[NotebookLM][UPLOAD_SESSION_MISSING]`, sanitizeErrorMessage(rawMessage));
-            sendResponse({
-                status: "error",
-                i18nKey: "uploadSessionFailed",
-                code: "UPLOAD_SESSION_MISSING"
-            });
-
-            // Cas 4 : Erreur réseau / Timeout
-        } else if (err.name === "AbortError" || rawMessage.toLowerCase().includes("timeout")) {
-            console.warn(`[NotebookLM][TIMEOUT]`);
-            sendResponse({
-                status: "error",
-                i18nKey: "timeout",
-                code: "TIMEOUT"
-            });
-
-            // Cas 5 : Toute autre erreur inattendue
-        } else {
-            const safeLog = sanitizeErrorMessage(rawMessage);
-            console.error(`[NotebookLM][UNKNOWN]`, safeLog);
-            sendResponse({
-                status: "error",
-                i18nKey: "unexpectedError",
-                code: "UNKNOWN"
-            });
-        }
-    }
-}
-
 // Dernière capture (stockée en mémoire pour téléchargement local)
 let lastCaptureData = null;    // base64 PDF ou texte Markdown
 let lastCaptureFilename = null;
@@ -123,6 +61,14 @@ let lastCaptureFormat = null;  // "pdf" ou "md"
 // =====================================================================
 // INJECTION DYNAMIQUE DES SCRIPTS (Lazy Loading)
 // =====================================================================
+
+/**
+ * Pipelines d'injection par format.
+ * Chaque pipeline définit la liste ordonnée des scripts à injecter
+ * dans l'onglet actif avant d'envoyer le message CAPTURE_CONTENT.
+ * Les formats sans pipeline (url, direct, drive, screenshot, selection)
+ * n'ont pas besoin de content scripts.
+ */
 const INJECTION_PIPELINE = {
     pdf: [
         "lib/Readability.js",
@@ -142,6 +88,12 @@ const INJECTION_PIPELINE = {
     selection: [],
 };
 
+/**
+ * Sentinelles globales des scripts injectés.
+ * Chaque script positionne une variable globale (window.xxx) à son chargement.
+ * isScriptInjected() interroge ces sentinelles via executeScript
+ * pour éviter les doubles injections — sans jamais utiliser eval().
+ */
 const INJECTION_SENTINELS = {
     "lib/Readability.js": "Readability",
     "lib/jspdf.umd.min.js": "jspdf",
@@ -150,7 +102,16 @@ const INJECTION_SENTINELS = {
     "src/content/md_generator.js": "nwcmdgen",
 };
 
-/** Levée quand browser.scripting.executeScript échoue. */
+/**
+ * Erreur levée lorsque browser.scripting.executeScript échoue sur un onglet
+ * (page restreinte : about:, chrome:, moz-extension:, etc.).
+ *
+ * @class
+ * @extends {Error}
+ * @param {number} tabId  - ID de l'onglet ciblé.
+ * @param {string} file   - Fichier dont l'injection a échoué.
+ * @param {string} detail - Message d'erreur brut du navigateur.
+ */
 class InjectionError extends Error {
     constructor(tabId, file, detail) {
         super(`Injection échouée sur onglet ${tabId} — ${file} : ${detail}`);
@@ -161,7 +122,12 @@ class InjectionError extends Error {
 }
 
 /**
- * Retourne true si le script est déjà actif dans l'onglet.
+ * Vérifie si un script est déjà actif dans l'onglet via sa sentinelle globale.
+ * Utilise browser.scripting.executeScript avec une fonction pure (zéro eval).
+ *
+ * @param  {number} tabId      - ID de l'onglet à vérifier.
+ * @param  {string} scriptFile - Chemin relatif du script (clé de INJECTION_SENTINELS).
+ * @returns {Promise<boolean>}  - true si le script est déjà injecté, false sinon.
  */
 async function isScriptInjected(tabId, scriptFile) {
     const globalVar = INJECTION_SENTINELS[scriptFile];
@@ -180,8 +146,15 @@ async function isScriptInjected(tabId, scriptFile) {
 }
 
 /**
- * Injecte une liste de scripts dans l'ordre dans un onglet.
- * Ignore silencieusement les scripts déjà présents.
+ * Injecte une liste de scripts dans l'ordre strict dans un onglet donné.
+ * Promise.all est interdit ici : la séquence doit être strictement linéaire
+ * (Readability → jsPDF → serializer → pdf_generator).
+ * Ignore silencieusement les scripts déjà présents (déduplication par sentinelle).
+ *
+ * @param  {number}   tabId   - ID de l'onglet cible.
+ * @param  {string[]} scripts - Liste ordonnée de chemins de scripts à injecter.
+ * @returns {Promise<void>}
+ * @throws  {InjectionError}  - Si l'injection d'un script échoue (page restreinte).
  */
 async function injectScriptsSequentially(tabId, scripts) {
     for (const file of scripts) {
@@ -200,8 +173,12 @@ async function injectScriptsSequentially(tabId, scripts) {
 }
 
 /**
- * Devine le MIME type d'un fichier Drive à partir du titre de l'onglet Firefox.
- * Format attendu : "nomfichier.ext - Google Drive"
+ * Devine le MIME type d'un fichier Drive hébergé à partir du titre de l'onglet Firefox.
+ * Format attendu du titre : "nomfichier.ext - Google Drive".
+ * Fallback à 'application/pdf' si l'extension est inconnue ou absente.
+ *
+ * @param  {string} title - Titre de l'onglet tel que retourné par tabs.query().
+ * @returns {string}       - MIME type détecté (ex: 'image/png') ou 'application/pdf'.
  */
 function guessMimeFromTitle(title) {
     const EXTENSION_MAP = {
@@ -303,8 +280,13 @@ const EXT_TO_MIME = {
 const SUPPORTED_EXT_REGEX = /\.(pdf|txt|md|docx|csv|pptx|epub|avif|bmp|gif|ico|jp2|png|webp|tif|tiff|heic|heif|jpe?g|3g2|3gp|aac|aif|aifc|aiff|amr|au|avi|cda|m4a|mid|mp3|mp4|mpeg|ogg|opus|ra|ram|snd|wav|wma)$/i;
 
 /**
- * Détecte si une URL pointe vers un fichier directement importable.
- * Combine l'analyse de l'extension URL + requête HEAD pour confirmer le MIME type.
+ * Détecte si une URL pointe vers un fichier directement importable dans NotebookLM.
+ * Combine l'analyse de l'extension URL (heuristique rapide) et une requête HEAD
+ * pour confirmer le Content-Type réel. Retourne directImport: false pour toute
+ * URL non HTTP(S) ou dont le type est non supporté.
+ *
+ * @param  {string} url - URL complète à analyser.
+ * @returns {Promise<{directImport: boolean, mimeType?: string, label?: string, category?: string, isLocal?: boolean}>}
  */
 async function detectFileType(url) {
     if (!url || (!url.startsWith('http://') && !url.startsWith('https://') && !url.startsWith('file://'))) {
@@ -325,7 +307,7 @@ async function detectFileType(url) {
             const contentType = headResp.headers.get('content-type') || '';
             detectedMime = contentType.split(';')[0].trim().toLowerCase();
         } catch (e) {
-            console.warn('[Background] HEAD request échouée:', e.message);
+            console.warn('[MC] detectFileType — HEAD request échouée:', e.message);
         }
     }
 
@@ -361,7 +343,7 @@ browser.runtime.onInstalled.addListener(async () => {
             contexts: ["selection"]
         });
     } catch (e) {
-        console.warn("[Background] contextMenus non disponible:", e.message);
+        console.warn('[MC] contextMenus non disponible:', e.message);
     }
 });
 
@@ -377,7 +359,7 @@ if (browser.contextMenus?.onClicked) {
                     selectionHtml = response.html;
                 }
             } catch (e) {
-                console.warn("[Background] Content script inaccessible, fallback texte brut.");
+                console.warn('[MC] Content script inaccessible pour GET_SELECTION_HTML — fallback texte brut.');
             }
 
             await browser.storage.local.set({
@@ -393,7 +375,7 @@ if (browser.contextMenus?.onClicked) {
             try {
                 await browser.action.openPopup();
             } catch (e) {
-                console.warn("[Background] openPopup() échoué:", e.message);
+                console.warn('[MC] openPopup() indisponible — notification de repli émise:', e.message);
                 browser.notifications.create("nwc-selection-ready", {
                     type: "basic",
                     iconUrl: browser.runtime.getURL("icons/icon.svg"),
@@ -405,7 +387,27 @@ if (browser.contextMenus?.onClicked) {
     });
 }
 
-// Routeur Principal recevant les messages de la Popup et du Content Script
+/**
+ * Routeur central des messages inter-scripts (popup → background → content).
+ * Tous les handlers retournent `true` pour signaler une réponse asynchrone.
+ *
+ * Handlers disponibles :
+ * - GET_AUTH_STATUS     : vérifie la présence de cookies NotebookLM (connexion personnelle).
+ * - GET_ACCOUNTS        : liste les comptes Google détectés + index actif.
+ * - SET_ACCOUNT         : définit le compte actif (index authuser).
+ * - GET_NOTEBOOKS       : liste les carnets du compte actif via RPC.
+ * - CREATE_NOTEBOOK     : crée un nouveau carnet vide et retourne son ID.
+ * - FETCH_IMAGE         : proxy CORS — télécharge une image et retourne un data URI Base64.
+ * - DOWNLOAD_CAPTURE    : génère un Blob local depuis lastCaptureData et lance le téléchargement.
+ * - DETECT_FILE_TYPE    : HEAD request pour détecter si une URL pointe vers un fichier importable.
+ * - DETECT_MIME         : HEAD request minimale — retourne {isBinary, mime} pour la popup.
+ * - START_CAPTURE       : point d'entrée principal — déclenche l'un des 7 pipelines d'import.
+ *
+ * @param  {Object}   message    - Message reçu (doit contenir message.action).
+ * @param  {Object}   sender     - Metadata de l'expéditeur (tab, frameId, etc.).
+ * @param  {Function} sendResponse - Callback Firefox pour la réponse synchrone.
+ * @returns {true}               - Indique systématiquement une réponse asynchrone.
+ */
 browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
     if (message.action === "GET_AUTH_STATUS") {
@@ -433,7 +435,7 @@ browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
                 sendResponse({ accounts, activeIndex });
             } catch (err) {
-                console.error("[Background] Échec GET_ACCOUNTS: ", err.message);
+                console.error('[MC] GET_ACCOUNTS:', sanitizeErrorMessage(err.message));
                 sendResponse({ error: err.message, accounts: [] });
             }
         })();
@@ -462,10 +464,10 @@ browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
                 sendResponse({ notebooks });
             } catch (err) {
-                console.error("[NotebookLM][GET_NOTEBOOKS]", sanitizeErrorMessage(err.message));
+                console.error('[MC] GET_NOTEBOOKS:', sanitizeErrorMessage(err.message));
                 sendResponse({
                     status: "error",
-                    i18nKey: "errGetNotebooks",   // ✅ CORRECTION 1
+                    i18nKey: "errGetNotebooks",
                     code: "UNKNOWN"
                 });
             }
@@ -486,10 +488,10 @@ browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
                 const notebookId = await createPersonalNotebook(message.title, activeIndex);
                 sendResponse({ notebookId });
             } catch (err) {
-                console.error("[NotebookLM][CREATE_NOTEBOOK]", sanitizeErrorMessage(err.message));
+                console.error('[MC] CREATE_NOTEBOOK:', sanitizeErrorMessage(err.message));
                 sendResponse({
                     status: "error",
-                    i18nKey: "errCreateNotebook",  // ✅ CORRECTION 2
+                    i18nKey: "errCreateNotebook",
                     code: "UNKNOWN"
                 });
             }
@@ -593,7 +595,7 @@ browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
                 const isBinary = BINARY_MIME_PREFIXES.some(p => mime.startsWith(p));
                 sendResponse({ isBinary, mime });
             } catch (e) {
-                console.warn('[MC] DETECT_MIME failed:', e?.message);
+                console.warn('[MC] DETECT_MIME — requête échouée:', e?.message);
                 sendResponse({ isBinary: false, mime: '' });
             }
         })();
@@ -667,10 +669,10 @@ browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
                         message: browser.i18n.getMessage("notifSuccessMsg").replace("{title}", cleanTitle).replace("{format}", "Sélection")
                     });
                 } catch (err) {
-                    console.error("[NotebookLM][SELECTION]", sanitizeErrorMessage(err.message));
+                    console.error('[MC] Pipeline SELECTION:', sanitizeErrorMessage(err.message));
                     notifyUI("STATUS_UPDATE", {
                         status: "error",
-                        i18nKey: "errSelectionFailed",  // ✅ CORRECTION 3
+                        i18nKey: "errSelectionFailed",
                         code: "UNKNOWN"
                     });
                 }
@@ -691,7 +693,7 @@ browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
                                 sendResponse({
                                     status: "error",
                                     code: "INJECTION_FAILED",
-                                    i18nKey: "errInjectionFailed"  // ✅ CORRECTION 5
+                                    i18nKey: "errInjectionFailed"
                                 });
                                 return true;
                             }
@@ -702,10 +704,10 @@ browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
                 executeCaptureAndUploadWorkflow(message.notebookId, format, message.intentNote)
                     .catch(err => {
-                        console.error("[NotebookLM][WORKFLOW]", sanitizeErrorMessage(err.message));
+                        console.error('[MC] Pipeline WORKFLOW:', sanitizeErrorMessage(err.message));
                         notifyUI("STATUS_UPDATE", {
                             status: "error",
-                            i18nKey: "errWorkflowFailed",  // ✅ CORRECTION 4
+                            i18nKey: "errWorkflowFailed",
                             code: "UNKNOWN"
                         });
                     });
@@ -717,7 +719,12 @@ browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
 });
 
 /**
- * Mise à jour de l'interface visuelle (Popup si elle est encore active)
+ * Émet un message vers la popup (si elle est encore ouverte) pour mettre à jour l'UI.
+ * Les erreurs de livraison sont silencieusement ignorées : la popup peut être fermée.
+ *
+ * @param  {string} action  - Type du message (ex: "STATUS_UPDATE").
+ * @param  {Object} payload - Corps du message (i18nKey, status, linkUrl, etc.).
+ * @returns {void}
  */
 function notifyUI(action, payload) {
     browser.runtime.sendMessage({ type: action, ...payload }).catch(() => {
@@ -726,7 +733,16 @@ function notifyUI(action, payload) {
 }
 
 /**
- * Moteur de Séquence Stricte — PDF, Markdown ou URL
+ * Orchestre le workflow complet de capture et d'upload pour les formats
+ * PDF, Markdown, URL, Screenshot, Import Direct et Google Drive.
+ * Gère la création à la volée d'un carnet si notebookId === "CREATE_NEW".
+ * Émet des STATUS_UPDATE vers la popup à chaque étape du pipeline.
+ *
+ * @param  {string}      targetNotebookId - ID du carnet cible, ou "CREATE_NEW".
+ * @param  {string}      format           - Format d'import : "pdf" | "md" | "url" | "screenshot" | "direct" | "drive".
+ * @param  {string|null} [intentNote]     - Annotation d'intention optionnelle (§8 AGENTS.md).
+ * @returns {Promise<void>}
+ * @throws  {Error} - Si l'onglet actif est absent, le carnet introuvable, ou l'upload échoue.
  */
 async function executeCaptureAndUploadWorkflow(targetNotebookId, format, intentNote = null) {
 
@@ -880,8 +896,10 @@ async function executeCaptureAndUploadWorkflow(targetNotebookId, format, intentN
         // ═══ Pipelines PDF / Markdown : content script requis ═══
         notifyUI("STATUS_UPDATE", { i18nKey: "statusDomCapture", status: "info" });
 
+        // CAPTURE_CONTENT : action distincte de START_CAPTURE (popup→background)
+        // pour lever l'ambiguïté sur les deux flux de messagerie.
         const response = await browser.tabs.sendMessage(activeTab.id, {
-            action: "START_CAPTURE",
+            action: "CAPTURE_CONTENT",
             format: format,
             intentNote: intentNote ?? null
         });
@@ -937,12 +955,17 @@ async function executeCaptureAndUploadWorkflow(targetNotebookId, format, intentN
 
 /**
  * Upload générique d'un Blob (fichier binaire) vers NotebookLM.
- * Réutilise le protocole resumable 3 étapes (o4cbdc → start → upload+finalize).
+ * Réutilise le protocole resumable 3 étapes : enregistrement RPC (o4cbdc)
+ * → initialisation de session upload → upload + finalisation.
+ * Utilisé pour les formats Screenshot (PNG) et Import Direct (tous types binaires).
  *
- * @param {string} notebookId - ID du carnet cible.
- * @param {Blob} blob - Blob binaire du fichier.
- * @param {string} filename - Nom du fichier avec extension.
- * @param {number} authuserIndex - Index du compte Google actif.
+ * @param  {string} notebookId       - ID du carnet cible.
+ * @param  {Blob}   blob             - Blob binaire du fichier à uploader.
+ * @param  {string} filename         - Nom du fichier avec extension (ex: "capture.png").
+ * @param  {number} [authuserIndex=0] - Index du compte Google actif.
+ * @returns {Promise<true>}           - Résout à true si l'upload est terminé avec succès.
+ * @throws  {Error}                   - Si l'authentification est absente, SOURCE_ID manquant,
+ *                                      x-goog-upload-url absent, ou HTTP 4xx/5xx.
  */
 async function uploadFileBlob(notebookId, blob, filename, authuserIndex = 0) {
 
@@ -1018,12 +1041,15 @@ async function uploadFileBlob(notebookId, blob, filename, authuserIndex = 0) {
         throw new Error(`Échec upload fichier: HTTP ${finalizeResponse.status}`);
     }
 
-    console.log(`[NotebookLM RPC] ✅ Fichier uploadé (${Math.round(blob.size / 1024)} Ko).`);
     return true;
 }
 
 /**
- * Utilitaire : extraire la première string d'une structure imbriquée
+ * Extraie récursivement la première string d'une structure imbriquée de tableaux.
+ * Utilisé pour parser le SOURCE_ID depuis les réponses RPC [[[[id]]]] ou [[[id]]].
+ *
+ * @param  {any} data - Structure imbriquée (string, Array, ou autre).
+ * @returns {string|null} - Première string trouvée, ou null si aucune.
  */
 function extractFirstStringFromResult(data) {
     if (typeof data === 'string') return data;

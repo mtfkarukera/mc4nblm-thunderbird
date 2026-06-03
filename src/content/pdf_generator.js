@@ -112,7 +112,7 @@ window.ClipperPDFGenerator = {
     if (wordCount > 490000) {
       throw new Error(`Quota dépassé : ~${wordCount} mots (limite NotebookLM : 500 000).`);
     }
-    console.log(`[PDF Gen V7] Page validée : ~${wordCount} mots.`);
+
   },
 
   /**
@@ -122,11 +122,8 @@ window.ClipperPDFGenerator = {
    * @returns {Promise<string>} PDF en Base64 Data URI.
    */
   async generate(container, intentNote = null) {
-    console.log("[PDF Gen V7] Extraction des blocs structurés...");
-
     // Extraire les blocs du container HTML
     const blocks = this._extractBlocks(container);
-    console.log(`[PDF Gen V7] ${blocks.length} blocs extraits.`);
 
     // Initialiser jsPDF
     const jsPDFCtor = (typeof jspdf !== 'undefined' && jspdf.jsPDF) ? jspdf.jsPDF :
@@ -170,8 +167,10 @@ window.ClipperPDFGenerator = {
       y += 4;
     };
 
-    const injectIntentHeader = (doc, intentNote, layout) => {
-      if (!intentNote) return; // champ vide → aucune injection
+    // Injecte le bloc d'intention AVANT le grounding et retourne le curseur y mis à jour.
+    // Utilise y comme paramètre explicite — jamais doc.y (propriété dynamique non-standard).
+    const injectIntentHeader = (doc, intentNote, y, layout) => {
+      if (!intentNote) return y; // champ vide → aucune injection, y inchangé
 
       const { margin, pageWidth, lineHeight } = layout;
       const usableWidth = pageWidth - margin * 2;
@@ -179,29 +178,29 @@ window.ClipperPDFGenerator = {
       // Titre de section
       doc.setFontSize(9);
       doc.setFont("helvetica", "bold");
-      doc.text("[INTENTION DE RECHERCHE]", margin, doc.y);
-      doc.y += lineHeight;
+      doc.text("[INTENTION DE RECHERCHE]", margin, y);
+      y += lineHeight;
 
       // Contenu de la note
       doc.setFont("helvetica", "italic");
       const lines = doc.splitTextToSize(intentNote, usableWidth);
       lines.forEach(line => {
-        doc.text(line, margin, doc.y);
-        doc.y += lineHeight;
+        doc.text(line, margin, y);
+        y += lineHeight;
       });
 
       // Séparateur visuel
       doc.setFont("helvetica", "normal");
       doc.setDrawColor(200, 200, 200);
-      doc.line(margin, doc.y, pageWidth - margin, doc.y);
-      doc.y += lineHeight * 1.5;
+      doc.line(margin, y, pageWidth - margin, y);
+      y += lineHeight * 1.5;
+
+      return y;
     };
 
     // Ordre d'injection : on insère AVANT le rendu des meta-blocs (grounding)
     if (intentNote) {
-      doc.y = y;
-      injectIntentHeader(doc, intentNote, { margin: m, pageWidth: pw, lineHeight: 5 });
-      y = doc.y;
+      y = injectIntentHeader(doc, intentNote, y, { margin: m, pageWidth: pw, lineHeight: 5 });
     }
 
     // --- Rendu des blocs ---
@@ -259,7 +258,7 @@ window.ClipperPDFGenerator = {
             doc.addImage(block.data, 'JPEG', xOff, y, fw, fh);
             y += fh + 5;
           } catch (e) {
-            console.warn("[PDF Gen V7] Image ignorée:", e.message);
+            console.warn('[MC] Image ignorée:', e.message);
           }
           break;
         }
@@ -279,7 +278,6 @@ window.ClipperPDFGenerator = {
     }
 
     const result = doc.output('datauristring');
-    console.log(`[PDF Gen V7] ✅ PDF généré (${Math.round(result.length / 1024)} Ko)`);
     return result;
   },
 

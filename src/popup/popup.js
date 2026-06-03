@@ -26,10 +26,12 @@ const BINARY_EXTENSIONS = new Set([
   'avi','mov','mkv','3gp','3g2','mpeg','docx','xlsx','pptx','epub','csv'
 ]);
 
+/** Retourne true si l'URL correspond à une page YouTube (watch, shorts, youtu.be). */
 function isYouTubeWatch(url) {
   return /(?:youtube\.com\/watch|youtu\.be\/|youtube\.com\/shorts\/)/.test(url);
 }
 
+/** Retourne true si l'URL se termine par une extension binaire connue (pdf, mp3, png, etc.). */
 function hasBinaryExtension(url) {
   try {
     const path = new URL(url).pathname;
@@ -47,15 +49,16 @@ let currentFormat = "pdf";
 let detectedFileInfo = null;
 let pendingSelection = null; // Sélection en attente (capturée via le menu contextuel)
 
-// Helper : créer un placeholder textuel sécurisé (remplace innerHTML)
+/** Remplace le contenu d'un container par un placeholder textuel (zéro innerHTML). */
 function setPlaceholder(container, text, style) {
   const div = document.createElement('div');
   div.className = 'placeholder-text';
   if (style) div.style.cssText = style;
   div.textContent = text;
   container.replaceChildren(div);
-} 
+}
 
+/** Applique les traductions i18n sur tous les éléments DOM portant data-i18n*. */
 function applyI18n() {
   document.querySelectorAll('[data-i18n]').forEach(el => {
     el.textContent = t(el.dataset.i18n);
@@ -201,6 +204,7 @@ document.addEventListener('DOMContentLoaded', async () => {
    }
 });
 
+/** Charge la liste des carnets depuis le background et met à jour l'affichage. */
 function loadNotebooks() {
     setPlaceholder(uiNotebookList, t('loadingNotebooks'));
     browser.runtime.sendMessage({ action: "GET_NOTEBOOKS" }).then((res) => {
@@ -220,6 +224,7 @@ function loadNotebooks() {
     });
 }
 
+/** Construit la liste visuelle des carnets dans le DOM à partir d'un tableau filtré. */
 function renderNotebooks(list) {
     uiNotebookList.replaceChildren();
     if(list.length === 0) {
@@ -243,6 +248,7 @@ function renderNotebooks(list) {
     });
 }
 
+/** Retarde l'exécution d'une fonction jusqu'à ce qu'un délai d'inactivité soit écoulé. */
 function debounce(func, delay) {
   let timeoutId;
   return function (...args) {
@@ -253,6 +259,7 @@ function debounce(func, delay) {
   };
 }
 
+/** Filtre les carnets en cache par titre et rafraîchit l'affichage. */
 function filterNotebooks(query) {
   const filtered = allNotebooksCache.filter(nb => nb.title.toLowerCase().includes(query.toLowerCase()));
   renderNotebooks(filtered);
@@ -300,6 +307,7 @@ async function createNewNotebook() {
   }
 }
 
+/** Déclenche le processus de capture en envoyant START_CAPTURE au background. */
 function startCaptureProcess() {
    if (!currentSelectedNotebookId) {
      updateStatus(t('errNoNotebook'), "error");
@@ -452,7 +460,7 @@ async function detectActiveTabFileType() {
          return;
        }
      } catch (e) {
-       console.warn('[Popup] DETECT_MIME message failed:', e?.message);
+        console.warn('[MC] DETECT_MIME — requête échouée:', e?.message);
        // Skip silencieux : comportement page web ordinaire
      }
 
@@ -517,7 +525,7 @@ async function detectActiveTabFileType() {
        }
      }
    } catch (e) {
-     console.warn('[Popup] Détection fichier échouée:', e.message);
+      console.warn('[MC] Détection fichier échouée:', e.message);
    }
 }
 
@@ -608,16 +616,18 @@ async function checkPendingSelection() {
      // Marquer la sélection comme vue (elle sera supprimée au prochain checkPendingSelection)
      await browser.storage.local.remove('nwc_pending_selection');
    } catch (e) {
-     console.warn('[Popup] Erreur vérification sélection:', e.message);
+      console.warn('[MC] Erreur vérification sélection:', e.message);
    }
 }
 
+/** Restaure l'état initial de l'UI après une capture réussie ou échouée. */
 function resetUI() {
   btnCapture.disabled = false;
   uiSearchInput.disabled = false;
   btnCustomSpinner.classList.add('hidden');
 }
 
+/** Met à jour le message de statut, avec lien optionnel vers le carnet et bouton de téléchargement. */
 function updateStatus(message, type, linkUrl, showDownload) {
   // Construction DOM sécurisée (pas de innerHTML)
   uiStatusMessage.replaceChildren();
@@ -660,6 +670,7 @@ function updateStatus(message, type, linkUrl, showDownload) {
   else uiStatusMessage.style.color = "var(--text-muted)";
 }
 
+/** Met à jour le badge d'état de connexion (texte + classe CSS). */
 function updateAuthStatus(text, cssClass) {
   uiAuthStatus.textContent = text;
   uiAuthStatus.className = `status-badge ${cssClass}`;

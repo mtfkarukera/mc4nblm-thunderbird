@@ -116,10 +116,7 @@ window.ClipperMarkdownGenerator = {
       container = doc.body;
     }
 
-    console.log("[MD Gen V1] Extraction des blocs structurés...");
-
     const blocks = this._extractBlocks(container);
-    console.log(`[MD Gen V1] ${blocks.length} blocs extraits.`);
 
     const lines = [];
 
@@ -247,13 +244,17 @@ window.ClipperMarkdownGenerator = {
     }
 
     const markdown = lines.join('\n').replace(/\n{3,}/g, '\n\n').trim();
-    console.log(`[MD Gen V1] ✅ Markdown généré (${markdown.length} chars)`);
     return markdown;
   },
 
-  // =================================================================
-  // _renderMarkdownTable : Table pipe-delimited
-  // =================================================================
+  /**
+   * Sérialise un bloc table (produit par flattenTable) en format pipe-delimited Markdown.
+   * Insère automatiquement la ligne de séparation --- après la dernière ligne d'en-tête.
+   *
+   * @param  {{head: string[][], body: string[][]}} block - Bloc table issu de _extractBlocks().
+   * @param  {string[]} lines - Tableau de lignes Markdown en cours de construction (muté in-place).
+   * @returns {void}
+   */
   _renderMarkdownTable(block, lines) {
     const allRows = [...(block.head || []), ...(block.body || [])];
     if (allRows.length === 0) return;
@@ -293,10 +294,15 @@ window.ClipperMarkdownGenerator = {
     }
   },
 
-  // =================================================================
-  // _extractBlocks : Parcourt le container HTML du serializer V9
-  // Similaire au PDF Generator mais avec des types enrichis pour Markdown
-  // =================================================================
+  /**
+   * Parcourt récursivement le container HTML du Serializer V9 et produit une liste
+   * de blocs sémantiques typés (p, h1-h6, table, li, code, blockquote, image, meta-*).
+   * Similaire au walker du PDF Generator, avec des types enrichis pour le rendu Markdown.
+   * Déduplique les blocs texte consécutifs identiques en fin de parcours.
+   *
+   * @param  {HTMLElement} container - Container autonome produit par ClipperSerializer.
+   * @returns {Array<Object>}         - Tableau de blocs sémantiques ordonnés.
+   */
   _extractBlocks(container) {
     const blocks = [];
 

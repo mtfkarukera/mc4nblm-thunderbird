@@ -71,11 +71,11 @@ Sélectionnez du texte sur n'importe quelle page, faites un clic droit → **« 
                                │ (Lazy Loading via executeScript)
                         ┌──────▼───────────┐
                         │  Content Script  │
-                        │  orchestrator.js │  ← Route PDF/MD + GET_SELECTION_HTML
-                        │  serializer.js   │  ← Readability + data URIs (injecté à la demande)
-                        │  pdfgenerator.js │  ← jsPDF + addImage (injecté à la demande)
-                        │  mdgenerator.js  │  ← Markdown pipe-delimited (injecté à la demande)
-                        └──────────────────┘
+                        │  orchestrator.js   │  ← Route PDF/MD + GET_SELECTION_HTML
+                        │  serializer.js     │  ← Readability + data URIs (injecté à la demande)
+                        │  pdf_generator.js  │  ← jsPDF + addImage (injecté à la demande)
+                        │  md_generator.js   │  ← Markdown pipe-delimited (injecté à la demande)
+                        └────────────────────┘
 ```
 
 ### 7 pipelines d'import
@@ -110,8 +110,8 @@ Quand un fichier est détecté (ex: image, audio), les boutons non pertinents so
 
 | Type de compte | Méthode | Module |
 | --- | --- | --- |
-| **Personnel** | Extraction cookies (`SID`, `HSID`, `SSID`) + CSRF | `authpersonal.js` + `rpcclient.js` |
-| **Workspace** | OAuth 2.0 + API Discovery Engine | `authworkspace.js` |
+| **Personnel** | Extraction cookies (`SID`, `HSID`, `SSID`) + CSRF | `auth_personal.js` + `rpc_client.js` |
+| **Workspace** | OAuth 2.0 + API Discovery Engine (STUB Sprint 7) | `auth_workspace.js` |
 
 > 🔒 **Sécurité** : Cookies/jetons jamais exposés. `browser.storage.local` purgé automatiquement en cas d'erreur 401/403. DOM 100% sécurisé (zéro `innerHTML`).
 
@@ -181,14 +181,14 @@ notebooklm-magic-clipper/
 │   ├── background/
 │   │   ├── background.js           # Routeur central + 7 pipelines + menu contextuel + i18n
 │   │   └── api/
-│   │       ├── authpersonal.js     # Extraction cookies + CSRF
-│   │       ├── authworkspace.js    # OAuth 2.0 Discovery Engine
-│   │       └── rpcclient.js        # batchexecute + upload + addText + addUrl + addDrive
+│   │       ├── auth_personal.js    # Extraction cookies + CSRF
+│   │       ├── auth_workspace.js   # STUB Sprint 7 — OAuth 2.0 Workspace
+│   │       └── rpc_client.js       # batchexecute + upload + addText + addUrl + addDrive
 │   ├── content/
 │   │   ├── orchestrator.js         # Point d'entrée (route PDF/MD + GET_SELECTION_HTML)
 │   │   ├── serializer.js           # Readability + Reader Mode CSS + data URIs
-│   │   ├── pdfgenerator.js         # jsPDF (texte + images + tables)
-│   │   └── mdgenerator.js          # Markdown (tables pipe-delimited)
+│   │   ├── pdf_generator.js        # jsPDF (texte + images + tables)
+│   │   └── md_generator.js         # Markdown (tables pipe-delimited)
 │   ├── popup/
 │   │   ├── popup.html              # Interface avec toggle 7 formats + sélecteur i18n
 │   │   ├── popup.css               # Design Glassmorphism
@@ -227,6 +227,32 @@ notebooklm-magic-clipper/
 ---
 
 ## 📋 Changelog récent
+
+### v6.0.0 — Contrôle & Sanitarisation — Juin 2026
+
+#### Corrections
+- `pdf_generator.js` : correction bug `doc.y` → variable locale `y` dans `injectIntentHeader` (8 occurrences)
+
+#### Nettoyage
+- Tous les fichiers JS : suppression de tous les `console.log`, révision des `console.warn`/`console.error` (24 logs supprimés, conservés uniquement si alerte fonctionnelle, préfixés `[MC]`)
+- Dead code supprimé : `safeRpcCall()`, `decodeResponse()`, `guessMimeFromTitle()` dans utils.js, bloc export CJS dans utils.js
+- `auth_workspace.js` : converti en stub documenté Sprint 7
+
+#### Sécurité & Conformité
+- `manifest.json` : permission `identity` orpheline supprimée, CSP explicite ajoutée (`script-src 'self'; object-src 'none'`)
+
+#### Documentation
+- JSDoc exhaustive sur toutes les fonctions publiques de `rpc_client.js`, `serializer.js`, `background.js`
+- JSDoc minimale ajoutée sur `auth_personal.js`, `orchestrator.js`, `md_generator.js`, `popup.js`, `utils.js`, `pdf_generator.js`
+- `AGENTS.md` mis à jour v6.0.0 : noms de fichiers réels (underscores), 4 nouveaux pièges, handlers action complets
+
+#### Nommages
+- `START_CAPTURE` (flux background→content) renommé `CAPTURE_CONTENT` dans `background.js` et `orchestrator.js`
+- `maxAccounts` → `MAX_ACCOUNTS` dans `auth_personal.js`
+- Tous les `console.warn`/`console.error` conservés préfixés `[MC]`
+
+#### Qualité
+- `web-ext lint` : 0 erreur, 0 notice, 8 warnings tolérés (libs tierces bundlées + icône SVG)
 
 ### v5.6.1 — Correctifs Matrice Contextuelle
 - **Import Direct** : le bouton URL reste disponible en parallèle sur les fichiers binaires détectés (PDF, images, audio, vidéo)
@@ -374,4 +400,4 @@ notebooklm-magic-clipper/
 ---
 
 *Projet développé selon la méthodologie **Spec-Driven Development (SDD)**.*
-*Version 5.6.1 — Juin 2026*
+*Version 6.0.0 — Juin 2026*

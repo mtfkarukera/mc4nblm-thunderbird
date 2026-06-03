@@ -101,11 +101,12 @@ window.ClipperSerializer = {
   `,
 
   /**
-   * Point d'entrée principal.
-   * Retourne un container HTML 100% autonome (CSS + métadonnées + contenu + images data URI).
+   * Point d'entrée principal du serializer.
+   * Orchestre les 3 étapes : extraction Readability, construction du container
+   * HTML autonome avec grounding, puis protection Tainted Canvas (images → data URIs).
    *
-   * @param {HTMLElement} wrapperClone - Clone du body (utilisé en fallback).
-   * @returns {HTMLElement} Container prêt pour jsPDF.
+   * @param  {HTMLElement} wrapperClone - Clone du body, utilisé en fallback si Readability échoue.
+   * @returns {Promise<HTMLElement>}     - Container HTML 100% autonome (CSS + métadonnées + contenu).
    */
   async process(wrapperClone) {
     // ---------------------------------------------------------------
@@ -119,14 +120,13 @@ window.ClipperSerializer = {
     let contentHtml, title, byline, siteName;
 
     if (article && article.content && article.content.length > 200) {
-      console.log(`[Serializer V9] ✅ Readability: extraction réussie (${article.content.length} chars)`);
       contentHtml = article.content;
       title = article.title || null;
       byline = article.byline || null;
       siteName = article.siteName || null;
     } else {
       // Fallback : si Readability échoue, on utilise le body nettoyé
-      console.log("[Serializer V9] ⚠️ Readability: échec, fallback DOM complet");
+      console.warn('[MC] Readability: échec ou contenu insuffisant — fallback DOM complet.');
       this._cleanDomFallback(wrapperClone);
       contentHtml = new XMLSerializer().serializeToString(wrapperClone);
       title = null;
@@ -157,14 +157,26 @@ window.ClipperSerializer = {
   // =================================================================
 
   /**
-   * Readability.parse() avec algorithme de vérification de rétention.
-   * Mesure le taux de perte sur un dénominateur préalablement débruité
+   * Tente d'extraire le contenu principal via Mozilla Readability.js.
+   * Applique un algorithme de vérification de rétention sur un dénominateur
+   * préalablement débruité (exclusion des nœuds de navigation et d'interface)
    * pour éviter les faux positifs sur les sites à forte composante UI.
+   * Retourne null si Readability est absente, échoue, ou si la rétention est
+   * jugée insuffisante — dans ce cas le pipeline bascule sur _cleanDomFallback().
+   *
+   * @warning Seuils de rétention : texte 40% || structure 35%
+   * || tables 50%. Trois signaux INDÉPENDANTS (||), jamais
+   * fusionner en &&, jamais descendre texte/structure sous
+   * 40%/35%. Signal tabulaire actif uniquement si
+   * originalTables >= 2.
+   *
+   * @returns {Object|null} - Objet article Readability ({content, title, byline, siteName, textContent}),
+   *                          ou null si l'extraction est rejetée ou échoue.
    */
   _tryReadability() {
     try {
       if (typeof Readability === 'undefined') {
-        console.warn("[Serializer V9] Readability.js non chargé");
+        console.warn('[MC] Readability.js non chargé — injection manquante ?');
         return null;
       }
 
@@ -209,33 +221,27 @@ window.ClipperSerializer = {
       const isTruncatedByTables = originalTables >= 2 && tableRetention < 0.50;
 
       if ((isTruncatedByText && isTruncatedByStructure) || isTruncatedByTables) {
-        console.log(
-          `[Serializer V9] ⏭️ Readability écartée — texte: ` +
-          `${Math.round(textRetention * 100)}%, structure: ` +
-          `${Math.round(nodeRetention * 100)}%, tables: ` +
-          `${Math.round(tableRetention * 100)}%` +
-          ` (${originalTables}→${extractedTables}) → fallback DOM`
-        );
         return null;
       }
 
-      console.log(
-        `[Serializer V9] ✅ Readability validée — texte: ` +
-        `${Math.round(textRetention * 100)}%, structure: ` +
-        `${Math.round(nodeRetention * 100)}%, tables: ` +
-        `${Math.round(tableRetention * 100)}%`
-      );
       return article;
 
     } catch (e) {
-      console.warn("[Serializer V9] Erreur Readability:", e.message);
+      console.warn('[MC] Erreur Readability:', e.message);
       return null;
     }
   },
 
   /**
-   * Construit le container HTML virtuel avec CSS + métadonnées + contenu.
-   * (Skill readability-content-extractor §3)
+   * Construit le container HTML virtuel autonome : CSS Reader Mode injecté en
+   * ligne, bloc de métadonnées de grounding (titre, auteur, site, date, URL),
+   * puis contenu principal parsé via DOMParser (zéro innerHTML — conformité AMO).
+   *
+   * @param  {string}      contentHtml - HTML du contenu principal (produit par Readability ou _cleanDomFallback).
+   * @param  {string|null} title       - Titre de l'article extrait par Readability (null si fallback).
+   * @param  {string|null} byline      - Auteur extrait par Readability (null si absent ou fallback).
+   * @param  {string|null} siteName    - Nom du site extrait par Readability (null si absent ou fallback).
+   * @returns {HTMLElement}             - Div container autonome prêt pour la génération PDF/MD.
    */
   _buildContainer(contentHtml, title, byline, siteName) {
     const container = document.createElement('div');
@@ -313,24 +319,18 @@ window.ClipperSerializer = {
   },
 
   /**
-   * Tainted Canvas Protection — Algorithme de conversion des images distantes.
-   * (Skill readability-content-extractor §4)
+   * Tainted Canvas Protection : convertit toutes les images distantes du container
+   * en data URIs Base64 via le background script (seul contexte sans CORS).
+   * Les images qui échouent sont supprimées du DOM pour éviter des erreurs jsPDF.
+   * Sans cette étape, doc.addImage() lève une SecurityError sur les images cross-origin.
    *
-   * Scanne TOUTES les <img> du container. Pour chaque image :
-   * 1. Envoie l'URL au background script via FETCH_IMAGE
-   * 2. Le background (privilégié, pas de CORS) télécharge l'image
-   * 3. Retourne un data URI (base64)
-   * 4. Remplace img.src par le data URI
-   * 5. En cas d'échec, SUPPRIME l'image (sinon html2canvas échoue)
+   * @param  {HTMLElement} container - Container DOM produit par _buildContainer().
+   * @returns {Promise<void>}         - Résout quand toutes les images sont traitées.
    */
   async _protectTaintedCanvas(container) {
     const images = container.querySelectorAll('img');
-    if (images.length === 0) {
-      console.log("[Serializer V9] Aucune image à convertir.");
-      return;
-    }
+    if (images.length === 0) return;
 
-    console.log(`[Serializer V9] 🔒 Tainted Canvas Protection: ${images.length} images à convertir...`);
     let converted = 0;
     let failed = 0;
 
@@ -375,18 +375,22 @@ window.ClipperSerializer = {
           failed++;
         }
       } catch (err) {
-        console.warn("[Serializer V9] Image échouée:", absoluteUrl, err.message);
+        console.warn('[MC] Image non convertible:', absoluteUrl, err.message);
         img.remove();
         failed++;
       }
     });
 
     await Promise.all(promises);
-    console.log(`[Serializer V9] ✅ Images converties: ${converted} OK, ${failed} supprimées.`);
   },
 
   /**
    * Nettoyage DOM étendu pour le mode Fallback (incluant Légifrance / DSFR).
+   * Supprime les éléments non-contenu : scripts, styles, iframes, navigation,
+   * bannières cookies, éléments masqués. Opère sur un clone — jamais le DOM live.
+   *
+   * @param  {HTMLElement} clone - Clone du body à nettoyer in-place.
+   * @returns {void}
    */
   _cleanDomFallback(clone) {
     const selectors = [

@@ -2,6 +2,12 @@
 
 let _customMessages = null;
 
+/**
+ * Charge les messages de traduction d'une locale depuis _locales/{locale}/messages.json.
+ *
+ * @param  {string} locale - Code locale (ex: "gcf", "fr", "en").
+ * @returns {Promise<Object>} - Dictionnaire clé→{message} ou objet vide en cas d'échec.
+ */
 async function loadLocaleMessages(locale) {
   try {
     const url = browser.runtime.getURL(`_locales/${locale}/messages.json`);
@@ -13,6 +19,12 @@ async function loadLocaleMessages(locale) {
   }
 }
 
+/**
+ * Définit la locale personnalisée active (actuellement seul "gcf" est supporté).
+ * Toute autre valeur réinitialise le mode natif browser.i18n.
+ *
+ * @param {string} locale - Code locale à activer ("gcf") ou chaîne vide pour le mode natif.
+ */
 export async function setCustomLocale(locale) {
   if (locale === 'gcf') {
     _customMessages = await loadLocaleMessages('gcf');
@@ -21,6 +33,15 @@ export async function setCustomLocale(locale) {
   }
 }
 
+/**
+ * Résout une clé i18n en chaîne traduite. Utilise les messages personnalisés (gcf)
+ * si actifs, sinon délègue à browser.i18n.getMessage().
+ * Ne JAMAIS appeler browser.i18n.getMessage() directement dans popup.js — passer par t().
+ *
+ * @param  {string}              key            - Clé de traduction (ex: "statusConnected").
+ * @param  {Object|Array|string} [substitutions={}] - Substitutions positionnelles.
+ * @returns {string} - Chaîne traduite, ou la clé elle-même si introuvable.
+ */
 export function t(key, substitutions = {}) {
   let msg = "";
 
@@ -48,14 +69,17 @@ export function t(key, substitutions = {}) {
   }
 
   if (!msg) {
-    console.warn('[i18n] clé manquante:', key);
+    console.warn('[MC] Clé i18n manquante:', key);
     return key;
   }
   return msg;
 }
 
 /**
- * Lanceur de promesse pour le FileReader (utile pour le Base64)
+ * Convertit un Blob en data URI Base64 via FileReader.
+ *
+ * @param  {Blob} blob - Blob à convertir.
+ * @returns {Promise<string>} - Data URI (ex: "data:image/png;base64,…").
  */
 function blobToBase64(blob) {
   return new Promise((resolve, reject) => {
@@ -76,6 +100,7 @@ function blobToBase64(blob) {
  *   3. docs.google.com/presentation/d/ID → Google Slides
  *   4. drive.google.com/file/d/ID/view  → Fichier Drive (PDF, image, etc.)
  *
+ * @param  {string} url - URL de l'onglet actif.
  * @returns {{ fileId: string, mimeType: string, typeStr: string } | null}
  */
 function parseDriveUrl(url) {
@@ -110,54 +135,8 @@ function parseDriveUrl(url) {
   }
 }
 
-/**
- * Devine le MIME type d'un fichier Drive à partir du titre de l'onglet.
- * Le titre Firefox suit le format : "nomfichier.ext - Google Drive"
- *
- * @param {string} title - Titre de l'onglet Firefox.
- * @returns {string} MIME type deviné, ou 'application/pdf' par défaut.
- */
-function guessMimeFromTitle(title) {
-  const EXTENSION_MAP = {
-    'pdf': 'application/pdf',
-    'txt': 'text/plain',
-    'md': 'text/markdown',
-    'csv': 'text/csv',
-    'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-    'pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-    'xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-    'epub': 'application/epub+zip',
-    'png': 'image/png',
-    'jpg': 'image/jpeg',
-    'jpeg': 'image/jpeg',
-    'gif': 'image/gif',
-    'webp': 'image/webp',
-    'svg': 'image/svg+xml',
-    'mp3': 'audio/mpeg',
-    'wav': 'audio/wav',
-    'mp4': 'video/mp4',
-  };
-
-  // Retirer le suffixe " - Google Drive" et extraire l'extension
-  const cleaned = title.replace(/\s*-\s*Google Drive\s*$/i, '').trim();
-  const dotIndex = cleaned.lastIndexOf('.');
-  if (dotIndex > 0) {
-      const ext = cleaned.substring(dotIndex + 1).toLowerCase();
-      if (EXTENSION_MAP[ext]) return EXTENSION_MAP[ext];
-  }
-  return 'application/pdf'; // Fallback le plus courant sur Drive
-}
-
-// Export pour le contexte du Content Script (s'il n'y a pas de modules purs)
+// Export pour le contexte du Content Script (accès via window.ClipperUtils)
 window.ClipperUtils = {
   blobToBase64,
   parseDriveUrl,
-  guessMimeFromTitle,
 };
-
-// Export ESM optionnel (pour les modules ES6 comme background.js)
-if (typeof exports !== 'undefined') {
-  exports.blobToBase64 = blobToBase64;
-  exports.parseDriveUrl = parseDriveUrl;
-  exports.guessMimeFromTitle = guessMimeFromTitle;
-}
