@@ -31,3 +31,8 @@ sign.sh
 web-ext-config.cjs
 web-ext-artifacts/
 tools/
+
+# Temporary SQLite and Node files
+cookies_copy.sqlite*
+node_modules/
+

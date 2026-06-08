@@ -349,5 +349,9 @@
   },
   "btnClearSelectionTitle": {
     "message": "Hủy"
+  },
+  "btnOpenNotebook": {
+    "message": "Mở →",
+    "description": "Button to open the notebook after a successful import"
   }
 }

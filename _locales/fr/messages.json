@@ -1,353 +1,201 @@
 {
   "extensionName": {
-    "message": "Magic Clipper pour NotebookLM",
-    "description": "Extension name displayed in Firefox about:addons"
+    "message": "NotebookLM Clipper pour Thunderbird",
+    "description": "Nom de l'extension affiché dans le gestionnaire de modules complémentaires"
   },
   "extensionDescription": {
-    "message": "Capturez, nettoyez et importez instantanément n'importe quelle page web dans Google NotebookLM avec une précision magique.",
-    "description": "Extension description displayed in Firefox about:addons"
+    "message": "Importez vos emails, pièces jointes et liens directement dans Google NotebookLM en un clic.",
+    "description": "Description de l'extension affichée dans le gestionnaire de modules complémentaires"
   },
-  "popupTitleCapture": {
-    "message": "Capturer cette page",
-    "description": "Main popup heading"
+  "actionTitle": {
+    "message": "Clip vers NotebookLM",
+    "description": "Infobulle du bouton message_display_action"
   },
-  "popupLabelSelectNotebook": {
-    "message": "Sélectionnez un carnet",
-    "description": "Label for notebook selection"
+
+  "stateAuthRequired": {
+    "message": "Connexion à NotebookLM requise",
+    "description": "Titre affiché quand l'authentification est nécessaire"
   },
-  "popupPlaceholderSearchNotebook": {
-    "message": "Rechercher des carnets...",
-    "description": "Placeholder for Fast Research input"
+  "stateAuthRequiredBody": {
+    "message": "Connectez votre compte Google pour commencer à importer vos emails dans NotebookLM.",
+    "description": "Texte explicatif de l'état connexion requise"
   },
-  "popupLabelLocale": {
-    "message": "Langue",
-    "description": "Label for the language selector"
+  "btnConnect": {
+    "message": "Se connecter à NotebookLM",
+    "description": "Bouton pour ouvrir l'onglet d'authentification NotebookLM"
   },
+  "stateLoading": {
+    "message": "Chargement…",
+    "description": "Message de chargement générique"
+  },
+
+  "labelSubject": {
+    "message": "Objet",
+    "description": "Étiquette de la ligne objet dans les métadonnées email"
+  },
+  "labelFrom": {
+    "message": "De",
+    "description": "Étiquette de l'expéditeur dans les métadonnées email"
+  },
+  "labelDate": {
+    "message": "Date",
+    "description": "Étiquette de la date dans les métadonnées email"
+  },
+
+  "labelNotebook": {
+    "message": "Carnet",
+    "description": "Étiquette au-dessus du sélecteur de carnet"
+  },
+  "placeholderSearch": {
+    "message": "Rechercher des carnets…",
+    "description": "Texte indicatif du champ de recherche rapide"
+  },
+  "btnCreateNotebook": {
+    "message": "+ Nouveau carnet",
+    "description": "Bouton de création d'un nouveau carnet"
+  },
+  "loadingNotebooks": {
+    "message": "Chargement des carnets…",
+    "description": "Affiché pendant la récupération de la liste des carnets"
+  },
+  "noNotebookFound": {
+    "message": "Aucun carnet trouvé.",
+    "description": "Affiché si la liste est vide ou si la recherche ne retourne rien"
+  },
+  "errNoNotebook": {
+    "message": "Veuillez d'abord sélectionner un carnet.",
+    "description": "Erreur quand l'utilisateur tente d'importer sans carnet sélectionné"
+  },
+
   "btnPdf": {
-    "message": "PDF",
-    "description": "Button label — export as PDF"
+    "message": "📄 PDF",
+    "description": "Bouton pour importer l'email en PDF"
   },
-  "btnPdfAriaLabel": {
-    "message": "Exporter la page en PDF et l'importer dans NotebookLM",
-    "description": "Accessible label for the PDF button"
-  },
-  "btnMarkdown": {
-    "message": "Markdown",
-    "description": "Button label — export as Markdown"
-  },
-  "btnMarkdownAriaLabel": {
-    "message": "Exporter la page en Markdown et l'importer dans NotebookLM",
-    "description": "Accessible label for the Markdown button"
+  "btnMd": {
+    "message": "📝 Markdown",
+    "description": "Bouton pour importer l'email en Markdown"
   },
   "btnUrl": {
-    "message": "URL",
-    "description": "Button label — send URL"
+    "message": "🔗 URL",
+    "description": "Bouton pour importer une URL détectée dans l'email"
   },
-  "btnUrlAriaLabel": {
-    "message": "Envoyer l'URL directe à NotebookLM",
-    "description": "Accessible label for the URL button"
-  },
-  "btnScreenshot": {
-    "message": "Screenshot",
-    "description": "Button label — capture screenshot"
-  },
-  "btnScreenshotAriaLabel": {
-    "message": "Capturer un screenshot et l'importer dans NotebookLM",
-    "description": "Accessible label for the Screenshot button"
-  },
-  "btnDirect": {
-    "message": "Import Direct",
-    "description": "Button label — direct import"
-  },
-  "btnDirectAriaLabel": {
-    "message": "Importer directement le fichier dans NotebookLM",
-    "description": "Accessible label for the Direct Import button"
-  },
-  "btnDrive": {
-    "message": "Google Drive",
-    "description": "Button label — Google Drive"
-  },
-  "btnDriveAriaLabel": {
-    "message": "Importer depuis Google Drive",
-    "description": "Accessible label for the Google Drive button"
-  },
+
   "intentNoteLabelVisible": {
     "message": "Intention de recherche (optionnel)",
-    "description": "Label for the intent note field"
+    "description": "Étiquette du champ note d'intention (visible PDF/MD, masqué pour les PJ)"
   },
   "intentNotePlaceholder": {
-    "message": "Optionnel : décrivez votre intention de recherche...",
-    "description": "Placeholder text for the intent note textarea"
+    "message": "Décrivez votre objectif de recherche…",
+    "description": "Texte indicatif du champ note d'intention"
   },
-  "statusCapturing": {
-    "message": "Capture en cours…",
-    "description": "Status message when capturing begins"
+
+  "labelAttachments": {
+    "message": "Pièces jointes",
+    "description": "Étiquette au-dessus de la liste des pièces jointes"
   },
-  "statusUploading": {
-    "message": "Téléversement… ($PERCENT$%)",
-    "description": "Upload progress message with substitution",
+  "btnImportSelection": {
+    "message": "Importer la sélection ($COUNT$)",
+    "description": "Bouton pour importer les pièces jointes sélectionnées",
     "placeholders": {
-      "PERCENT": {
+      "COUNT": {
         "content": "$1",
-        "example": "42"
+        "example": "3"
       }
     }
   },
+
+  "labelAccount": {
+    "message": "Compte Google",
+    "description": "Étiquette au-dessus du sélecteur de compte"
+  },
+
+  "statusCapturing": {
+    "message": "Génération en cours…",
+    "description": "Affiché pendant la génération du PDF ou Markdown"
+  },
+  "statusUploading": {
+    "message": "Envoi en cours…",
+    "description": "Affiché pendant l'upload vers NotebookLM"
+  },
+  "statusBatchProgress": {
+    "message": "Import de la pièce jointe $CURRENT$ sur $TOTAL$…",
+    "description": "Progression de l'import groupé de pièces jointes",
+    "placeholders": {
+      "CURRENT": { "content": "$1", "example": "2" },
+      "TOTAL":   { "content": "$2", "example": "4" }
+    }
+  },
   "statusSuccess": {
-    "message": "Importation réussie ✓",
-    "description": "Status message on success"
+    "message": "Import réussi ✓",
+    "description": "Affiché après un import réussi"
   },
-  "statusProcessing": {
-    "message": "Traitement en cours…",
-    "description": "Status message during processing"
+
+  "btnOpenNotebook": {
+    "message": "Ouvrir →",
+    "description": "Bouton pour ouvrir le carnet après un import réussi"
   },
+  "btnDownload": {
+    "message": "Télécharger ↓",
+    "description": "Bouton pour télécharger le fichier PDF ou MD généré"
+  },
+  "btnBack": {
+    "message": "← Retour",
+    "description": "Bouton pour revenir à l'état précédent"
+  },
+  "btnNewImport": {
+    "message": "Nouvel import",
+    "description": "Bouton pour démarrer un nouvel import après un succès"
+  },
+  "btnImportUrl": {
+    "message": "Importer cette URL",
+    "description": "Bouton pour confirmer la sélection d'URL"
+  },
+
   "errorApiChanged": {
     "message": "L'API NotebookLM a été modifiée. Une mise à jour est requise.",
-    "description": "User-facing error when API structure is modified"
+    "description": "Erreur API_CHANGED"
   },
   "errorAuthExpired": {
     "message": "Session expirée. Veuillez vous reconnecter à NotebookLM.",
-    "description": "User-facing error on 401/403"
+    "description": "Erreur AUTH_EXPIRED — affiché sur 401/403"
   },
   "errorUploadSessionMissing": {
-    "message": "Erreur pendant l'initialisation du téléversement.",
-    "description": "User-facing error when upload URL is missing"
+    "message": "Erreur lors de l'initialisation de l'upload. Veuillez réessayer.",
+    "description": "Erreur UPLOAD_SESSION_MISSING"
   },
   "errorTimeout": {
-    "message": "La requête a expiré. Veuillez vérifier votre connexion.",
-    "description": "User-facing error for timeouts"
+    "message": "La requête a expiré. Vérifiez votre connexion.",
+    "description": "Erreur TIMEOUT"
   },
   "errorInjectionFailed": {
-    "message": "Impossible d'activer le clipper sur cette page restreinte.",
-    "description": "User-facing error when script injection fails"
+    "message": "Impossible d'activer le clipper sur cet email.",
+    "description": "Erreur INJECTION_FAILED"
+  },
+  "errorNoEmailDisplayed": {
+    "message": "Ouvrez un email pour utiliser cette extension.",
+    "description": "Erreur NO_EMAIL_DISPLAYED"
+  },
+  "errorEmptyEmailBody": {
+    "message": "Cet email ne contient pas de contenu importable.",
+    "description": "Erreur EMPTY_EMAIL_BODY"
+  },
+  "errorAttachmentTooLarge": {
+    "message": "Ce fichier dépasse la limite de 200 Mo.",
+    "description": "Erreur ATTACHMENT_TOO_LARGE"
   },
   "errorUnknown": {
-    "message": "Une erreur inconnue est survenue. Consultez la console.",
-    "description": "User-facing error for uncategorized errors"
-  },
-  "menuContextImportSelection": {
-    "message": "Importer la sélection dans NotebookLM",
-    "description": "Context menu item to import selected text"
-  },
-  "popupLabelFormat": {
-    "message": "Format d'import"
-  },
-  "popupStatusReady": {
-    "message": "Prêt"
-  },
-  "btnClose": {
-    "message": "✖ Fermer"
-  },
-  "linkOpenNotebook": {
-    "message": "Ouvrir le carnet →"
-  },
-  "linkDownloadFile": {
-    "message": "Télécharger le {ext} ↓"
-  },
-  "linkDownloading": {
-    "message": "Téléchargement..."
-  },
-  "linkDownloaded": {
-    "message": "✅ Téléchargé"
-  },
-  "statusConnected": {
-    "message": "Connecté ({type})"
-  },
-  "statusDisconnected": {
-    "message": "Déconnecté"
-  },
-  "errAuth": {
-    "message": "Erreur d'authentification."
-  },
-  "loadingNotebooks": {
-    "message": "Chargement des carnets..."
-  },
-  "errLoadNotebooks": {
-    "message": "Erreur lors du chargement des carnets."
-  },
-  "noNotebookFound": {
-    "message": "Aucun carnet trouvé."
-  },
-  "notebookNotFound": {
-    "message": "Carnet introuvable."
-  },
-  "errNoSearchTerm": {
-    "message": "Saisissez un nom de carnet dans le champ de recherche."
-  },
-  "creatingNotebook": {
-    "message": "Création du carnet \"{title}\"..."
-  },
-  "notebookCreated": {
-    "message": "Carnet \"{title}\" créé ✅"
-  },
-  "errCreateNotebook": {
-    "message": "Impossible de créer le carnet. Vérifiez votre connexion et réessayez.",
-    "description": "Erreur lors de la création d'un carnet"
-  },
-  "errGeneric": {
-    "message": "Erreur : {msg}"
-  },
-  "errNoNotebook": {
-    "message": "Veuillez d'abord sélectionner un carnet."
-  },
-  "importingSelection": {
-    "message": "📋 Import de la sélection..."
-  },
-  "importingFormat": {
-    "message": "Import en {label}..."
-  },
-  "warnLocalFile": {
-    "message": "⚠️ Fichier local — l'import direct n'est pas disponible."
-  },
-  "errDownload": {
-    "message": "❌ Erreur"
-  },
-  "errGenericOccurred": {
-    "message": "Une erreur s'est produite."
-  },
-  "apiChanged": {
-    "message": "L'API NotebookLM a été modifiée par Google. Une mise à jour de l'extension est requise."
-  },
-  "sessionExpired": {
-    "message": "Session expirée. Reconnecte-toi sur notebooklm.google.com."
-  },
-  "uploadSessionFailed": {
-    "message": "L'upload a échoué : impossible d'obtenir une session d'upload."
-  },
-  "timeout": {
-    "message": "Délai dépassé. Vérifie ta connexion et réessaie."
-  },
-  "unexpectedError": {
-    "message": "Une erreur inattendue s'est produite. Consulte la console pour le diagnostic."
-  },
-  "errFileReader": {
-    "message": "Lecture du fichier échouée."
-  },
-  "errNoCapture": {
-    "message": "Aucune capture disponible."
-  },
-  "statusCreatingNb": {
-    "message": "Création du carnet..."
-  },
-  "statusUploadSelection": {
-    "message": "📋 Upload de la sélection..."
-  },
-  "statusImportedSelection": {
-    "message": "✅ Sélection importée !"
-  },
-  "notifSelectionTitle": {
-    "message": "📎 Clipper la sélection dans NotebookLM"
-  },
-  "notifSelectionCaptured": {
-    "message": "Sélection capturée ✓"
-  },
-  "notifSelectionMsg": {
-    "message": "Cliquez sur le bouton NotebookLM Web Clipper pour choisir un carnet."
-  },
-  "notifSuccessMsg": {
-    "message": "\"{title}\" ajouté en {format} avec succès !"
-  },
-  "statusFetchSession": {
-    "message": "Récupération Session Personnelle..."
-  },
-  "statusScreenshot": {
-    "message": "📸 Capture du viewport..."
-  },
-  "statusUploadScreenshot": {
-    "message": "📸 Upload du screenshot..."
-  },
-  "statusImportedScreenshot": {
-    "message": "✅ Screenshot importé !"
-  },
-  "statusDownloadFile": {
-    "message": "⚡ Téléchargement du fichier..."
-  },
-  "statusUploadFile": {
-    "message": "⚡ Upload du {ext}..."
-  },
-  "statusImportedFile": {
-    "message": "✅ Fichier importé directement !"
-  },
-  "statusDrive": {
-    "message": "☁️ Liaison avec le Google Drive..."
-  },
-  "statusImportedDrive": {
-    "message": "✅ Document Google Drive synchronisé !"
-  },
-  "statusYoutube": {
-    "message": "YouTube détecté → import natif..."
-  },
-  "statusSendUrl": {
-    "message": "Envoi de l'URL à NotebookLM..."
-  },
-  "statusImportedYoutube": {
-    "message": "✅ Vidéo YouTube importée !"
-  },
-  "statusImportedUrl": {
-    "message": "✅ URL importée !"
-  },
-  "statusDomCapture": {
-    "message": "Demande capture DOM..."
-  },
-  "statusSendMarkdown": {
-    "message": "Envoi du Markdown (source texte)..."
-  },
-  "statusImportedMarkdown": {
-    "message": "✅ Markdown importé !"
-  },
-  "statusCheckQuota": {
-    "message": "Vérification des quotas de sécurité..."
-  },
-  "statusSendPdf": {
-    "message": "Envoi du PDF (Serveurs Google)..."
-  },
-  "statusImportedPdf": {
-    "message": "✅ PDF importé !"
-  },
-  "errGetNotebooks": {
-    "message": "Impossible de récupérer vos carnets. Vérifiez votre connexion et rechargez.",
-    "description": "Erreur lors de la récupération de la liste des carnets"
-  },
-  "errSelectionFailed": {
-    "message": "Impossible d'importer la sélection. Réessayez.",
-    "description": "Erreur lors de l'import d'une sélection"
-  },
-  "errWorkflowFailed": {
-    "message": "Une erreur est survenue pendant l'import. Consultez la console pour le diagnostic.",
-    "description": "Erreur générique du workflow d'import"
-  },
-  "errInjectionFailed": {
-    "message": "Impossible d'activer le clipper sur cette page (page système ou restreinte).",
-    "description": "Erreur d'injection de script sur une page restreinte"
-  },
-  "popupTitleAccountSwitcher": {
-    "message": "Changer de compte Google"
-  },
-  "statusConnecting": {
-    "message": "Connexion..."
-  },
-  "btnCreateNotebookTitle": {
-    "message": "Créer un nouveau carnet"
-  },
-  "btnPdfTitle": {
-    "message": "Images intégrées, mise en page visuelle"
-  },
-  "btnMarkdownTitle": {
-    "message": "Tables parfaites, ultra-léger, natif Gemini"
-  },
-  "btnUrlTitle": {
-    "message": "Import instantané — NotebookLM scrape la page"
-  },
-  "btnScreenshotTitle": {
-    "message": "Capture le viewport visible en PNG"
-  },
-  "btnDriveTitle": {
-    "message": "Synchronisation native Google Drive"
-  },
-  "btnDirectTitle": {
-    "message": "Importer le fichier original tel quel"
-  },
-  "btnClearSelectionTitle": {
-    "message": "Annuler"
+    "message": "Une erreur est survenue. Consultez la console pour les détails.",
+    "description": "Erreur UNKNOWN"
+  },
+  "btnReconnect": {
+    "message": "Se reconnecter",
+    "description": "Bouton affiché après AUTH_EXPIRED pour rouvrir l'onglet d'auth"
+  },
+  "warningPartialImport": {
+    "message": "$COUNT$ pièce(s) jointe(s) n'ont pas pu être importée(s).",
+    "description": "Avertissement dans l'état SUCCESS si certaines PJ ont échoué",
+    "placeholders": {
+      "COUNT": { "content": "$1", "example": "1" }
+    }
   }
 }

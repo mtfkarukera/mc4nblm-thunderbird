@@ -349,5 +349,9 @@
   },
   "btnClearSelectionTitle": {
     "message": "Cancelar"
+  },
+  "btnOpenNotebook": {
+    "message": "Abrir →",
+    "description": "Button to open the notebook after a successful import"
   }
 }

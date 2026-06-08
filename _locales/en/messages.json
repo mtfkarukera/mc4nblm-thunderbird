@@ -1,353 +1,201 @@
 {
   "extensionName": {
-    "message": "Magic Clipper for NotebookLM",
-    "description": "Extension name displayed in Firefox about:addons"
+    "message": "NotebookLM Clipper for Thunderbird",
+    "description": "Extension name displayed in Thunderbird Add-on Manager"
   },
   "extensionDescription": {
-    "message": "Capture, clean, and seamlessly import any web page into Google NotebookLM with magic precision.",
-    "description": "Extension description displayed in Firefox about:addons"
+    "message": "Import emails, attachments and links directly into Google NotebookLM in one click.",
+    "description": "Extension description displayed in Thunderbird Add-on Manager"
   },
-  "popupTitleCapture": {
-    "message": "Capture this page",
-    "description": "Main popup heading"
+  "actionTitle": {
+    "message": "Clip to NotebookLM",
+    "description": "Tooltip on the message_display_action button"
   },
-  "popupLabelSelectNotebook": {
-    "message": "Select a notebook",
-    "description": "Label for notebook selection"
+
+  "stateAuthRequired": {
+    "message": "Sign in to NotebookLM",
+    "description": "Heading shown when authentication is needed"
   },
-  "popupPlaceholderSearchNotebook": {
-    "message": "Search notebooks...",
-    "description": "Placeholder for Fast Research input"
+  "stateAuthRequiredBody": {
+    "message": "Connect your Google account to start importing emails into NotebookLM.",
+    "description": "Explanation text in the auth-required state"
   },
-  "popupLabelLocale": {
-    "message": "Language",
-    "description": "Label for the language selector"
+  "btnConnect": {
+    "message": "Connect to NotebookLM",
+    "description": "Button to open the NotebookLM auth tab"
   },
+  "stateLoading": {
+    "message": "Loading…",
+    "description": "Generic loading message"
+  },
+
+  "labelSubject": {
+    "message": "Subject",
+    "description": "Label for the email subject metadata row"
+  },
+  "labelFrom": {
+    "message": "From",
+    "description": "Label for the email sender metadata row"
+  },
+  "labelDate": {
+    "message": "Date",
+    "description": "Label for the email date metadata row"
+  },
+
+  "labelNotebook": {
+    "message": "Notebook",
+    "description": "Label above the notebook selector"
+  },
+  "placeholderSearch": {
+    "message": "Search notebooks…",
+    "description": "Placeholder text for the Fast Research notebook search input"
+  },
+  "btnCreateNotebook": {
+    "message": "+ New notebook",
+    "description": "Button to create a new notebook"
+  },
+  "loadingNotebooks": {
+    "message": "Loading notebooks…",
+    "description": "Shown while notebooks are being fetched"
+  },
+  "noNotebookFound": {
+    "message": "No notebook found.",
+    "description": "Shown when notebook list is empty or search has no results"
+  },
+  "errNoNotebook": {
+    "message": "Please select a notebook first.",
+    "description": "Error when user tries to import without selecting a notebook"
+  },
+
   "btnPdf": {
-    "message": "PDF",
-    "description": "Button label — export as PDF"
+    "message": "📄 PDF",
+    "description": "Button to import email as PDF"
   },
-  "btnPdfAriaLabel": {
-    "message": "Export page as PDF and import into NotebookLM",
-    "description": "Accessible label for the PDF button"
-  },
-  "btnMarkdown": {
-    "message": "Markdown",
-    "description": "Button label — export as Markdown"
-  },
-  "btnMarkdownAriaLabel": {
-    "message": "Export page as Markdown and import into NotebookLM",
-    "description": "Accessible label for the Markdown button"
+  "btnMd": {
+    "message": "📝 Markdown",
+    "description": "Button to import email as Markdown text"
   },
   "btnUrl": {
-    "message": "URL",
-    "description": "Button label — send URL"
+    "message": "🔗 URL",
+    "description": "Button to import a URL detected in the email"
   },
-  "btnUrlAriaLabel": {
-    "message": "Send direct URL to NotebookLM",
-    "description": "Accessible label for the URL button"
-  },
-  "btnScreenshot": {
-    "message": "Screenshot",
-    "description": "Button label — capture screenshot"
-  },
-  "btnScreenshotAriaLabel": {
-    "message": "Capture screenshot and import into NotebookLM",
-    "description": "Accessible label for the Screenshot button"
-  },
-  "btnDirect": {
-    "message": "Direct Import",
-    "description": "Button label — direct import"
-  },
-  "btnDirectAriaLabel": {
-    "message": "Directly import file to NotebookLM",
-    "description": "Accessible label for the Direct Import button"
-  },
-  "btnDrive": {
-    "message": "Google Drive",
-    "description": "Button label — Google Drive"
-  },
-  "btnDriveAriaLabel": {
-    "message": "Import from Google Drive",
-    "description": "Accessible label for the Google Drive button"
-  },
+
   "intentNoteLabelVisible": {
     "message": "Research intention (optional)",
-    "description": "Label for the intent note field"
+    "description": "Label for the intent note textarea (visible for PDF/MD, hidden for attachments)"
   },
   "intentNotePlaceholder": {
-    "message": "Optional: describe your research intention...",
+    "message": "Describe your research goal…",
     "description": "Placeholder text for the intent note textarea"
   },
+
+  "labelAttachments": {
+    "message": "Attachments",
+    "description": "Label above the attachment checkboxes list"
+  },
+  "btnImportSelection": {
+    "message": "Import selection ($COUNT$)",
+    "description": "Button to import selected attachments — $COUNT$ is the number selected",
+    "placeholders": {
+      "COUNT": {
+        "content": "$1",
+        "example": "3"
+      }
+    }
+  },
+
+  "labelAccount": {
+    "message": "Google account",
+    "description": "Label above the account switcher dropdown"
+  },
+
   "statusCapturing": {
-    "message": "Capturing…",
-    "description": "Status message when capturing begins"
+    "message": "Generating…",
+    "description": "Shown while the PDF or Markdown is being generated"
   },
   "statusUploading": {
-    "message": "Uploading… ($PERCENT$%)",
-    "description": "Upload progress message with substitution",
+    "message": "Uploading…",
+    "description": "Shown while the file is being uploaded to NotebookLM"
+  },
+  "statusBatchProgress": {
+    "message": "Importing attachment $CURRENT$ of $TOTAL$…",
+    "description": "Progress message during grouped attachment import",
     "placeholders": {
-      "PERCENT": {
-        "content": "$1",
-        "example": "42"
-      }
+      "CURRENT": { "content": "$1", "example": "2" },
+      "TOTAL":   { "content": "$2", "example": "4" }
     }
   },
   "statusSuccess": {
     "message": "Imported successfully ✓",
-    "description": "Status message on success"
+    "description": "Shown on successful import"
   },
-  "statusProcessing": {
-    "message": "Processing…",
-    "description": "Status message during processing"
+
+  "btnOpenNotebook": {
+    "message": "Open →",
+    "description": "Button to open the notebook after a successful import"
   },
+  "btnDownload": {
+    "message": "Download ↓",
+    "description": "Button to download the generated PDF or MD file locally"
+  },
+  "btnBack": {
+    "message": "← Back",
+    "description": "Button to return to the READY state after an error"
+  },
+  "btnNewImport": {
+    "message": "New import",
+    "description": "Button to start a new import after success"
+  },
+  "btnImportUrl": {
+    "message": "Import this URL",
+    "description": "Button to confirm URL selection in the URL selector state"
+  },
+
   "errorApiChanged": {
-    "message": "NotebookLM API has changed. An update is required.",
-    "description": "User-facing error when API structure is modified"
+    "message": "The NotebookLM API has been modified. An update is required.",
+    "description": "Error code API_CHANGED"
   },
   "errorAuthExpired": {
     "message": "Session expired. Please sign in to NotebookLM again.",
-    "description": "User-facing error on 401/403"
+    "description": "Error code AUTH_EXPIRED — shown on 401/403"
   },
   "errorUploadSessionMissing": {
-    "message": "Error initializing the upload session.",
-    "description": "User-facing error when upload URL is missing"
+    "message": "Error initializing the upload. Please try again.",
+    "description": "Error code UPLOAD_SESSION_MISSING"
   },
   "errorTimeout": {
-    "message": "The request timed out. Please check your connection.",
-    "description": "User-facing error for timeouts"
+    "message": "Request timed out. Please check your connection.",
+    "description": "Error code TIMEOUT"
   },
   "errorInjectionFailed": {
-    "message": "Cannot activate clipper on this restricted page.",
-    "description": "User-facing error when script injection fails"
+    "message": "Cannot activate the clipper on this email.",
+    "description": "Error code INJECTION_FAILED"
+  },
+  "errorNoEmailDisplayed": {
+    "message": "Open an email to use this extension.",
+    "description": "Error code NO_EMAIL_DISPLAYED"
+  },
+  "errorEmptyEmailBody": {
+    "message": "This email has no importable content.",
+    "description": "Error code EMPTY_EMAIL_BODY"
+  },
+  "errorAttachmentTooLarge": {
+    "message": "This file exceeds the 200 MB limit.",
+    "description": "Error code ATTACHMENT_TOO_LARGE"
   },
   "errorUnknown": {
-    "message": "An unknown error occurred. Check the console.",
-    "description": "User-facing error for uncategorized errors"
-  },
-  "menuContextImportSelection": {
-    "message": "Import selection to NotebookLM",
-    "description": "Context menu item to import selected text"
-  },
-  "popupLabelFormat": {
-    "message": "Import format"
-  },
-  "popupStatusReady": {
-    "message": "Ready"
-  },
-  "btnClose": {
-    "message": "✖ Close"
-  },
-  "linkOpenNotebook": {
-    "message": "Open notebook →"
-  },
-  "linkDownloadFile": {
-    "message": "Download {ext} ↓"
-  },
-  "linkDownloading": {
-    "message": "Downloading..."
-  },
-  "linkDownloaded": {
-    "message": "✅ Downloaded"
-  },
-  "statusConnected": {
-    "message": "Connected ({type})"
-  },
-  "statusDisconnected": {
-    "message": "Disconnected"
-  },
-  "errAuth": {
-    "message": "Authentication error."
-  },
-  "loadingNotebooks": {
-    "message": "Loading notebooks..."
-  },
-  "errLoadNotebooks": {
-    "message": "Error loading notebooks."
-  },
-  "noNotebookFound": {
-    "message": "No notebook found."
-  },
-  "notebookNotFound": {
-    "message": "Notebook not found."
-  },
-  "errNoSearchTerm": {
-    "message": "Enter a notebook name in the search field."
-  },
-  "creatingNotebook": {
-    "message": "Creating notebook \"{title}\"..."
-  },
-  "notebookCreated": {
-    "message": "Notebook \"{title}\" created ✅"
-  },
-  "errGeneric": {
-    "message": "Error: {msg}"
-  },
-  "errNoNotebook": {
-    "message": "Please select a notebook first."
-  },
-  "importingSelection": {
-    "message": "📋 Importing selection..."
-  },
-  "importingFormat": {
-    "message": "Importing as {label}..."
-  },
-  "warnLocalFile": {
-    "message": "⚠️ Local file — direct import is not available."
-  },
-  "errDownload": {
-    "message": "❌ Error"
-  },
-  "errGenericOccurred": {
-    "message": "An error occurred."
-  },
-  "apiChanged": {
-    "message": "The NotebookLM API has been updated by Google. An extension update is required."
-  },
-  "sessionExpired": {
-    "message": "Session expired. Please sign in again at notebooklm.google.com."
-  },
-  "uploadSessionFailed": {
-    "message": "Upload failed: could not obtain an upload session."
-  },
-  "timeout": {
-    "message": "Request timed out. Check your connection and try again."
-  },
-  "unexpectedError": {
-    "message": "An unexpected error occurred. Check the console for details."
-  },
-  "errFileReader": {
-    "message": "File reading failed."
-  },
-  "errNoCapture": {
-    "message": "No capture available."
-  },
-  "statusCreatingNb": {
-    "message": "Creating notebook..."
-  },
-  "statusUploadSelection": {
-    "message": "📋 Uploading selection..."
-  },
-  "statusImportedSelection": {
-    "message": "✅ Selection imported!"
-  },
-  "notifSelectionTitle": {
-    "message": "📎 Clip selection to NotebookLM"
-  },
-  "notifSelectionCaptured": {
-    "message": "Selection captured ✓"
-  },
-  "notifSelectionMsg": {
-    "message": "Click the NotebookLM Web Clipper button to choose a notebook."
-  },
-  "notifSuccessMsg": {
-    "message": "\"{title}\" added as {format} successfully!"
-  },
-  "statusFetchSession": {
-    "message": "Retrieving Personal Session..."
-  },
-  "statusScreenshot": {
-    "message": "📸 Capturing viewport..."
-  },
-  "statusUploadScreenshot": {
-    "message": "📸 Uploading screenshot..."
-  },
-  "statusImportedScreenshot": {
-    "message": "✅ Screenshot imported!"
-  },
-  "statusDownloadFile": {
-    "message": "⚡ Downloading file..."
-  },
-  "statusUploadFile": {
-    "message": "⚡ Uploading {ext}..."
-  },
-  "statusImportedFile": {
-    "message": "✅ File imported directly!"
-  },
-  "statusDrive": {
-    "message": "☁️ Connecting to Google Drive..."
-  },
-  "statusImportedDrive": {
-    "message": "✅ Google Drive document synced!"
-  },
-  "statusYoutube": {
-    "message": "YouTube detected → native import..."
-  },
-  "statusSendUrl": {
-    "message": "Sending URL to NotebookLM..."
-  },
-  "statusImportedYoutube": {
-    "message": "✅ YouTube video imported!"
-  },
-  "statusImportedUrl": {
-    "message": "✅ URL imported!"
-  },
-  "statusDomCapture": {
-    "message": "Requesting DOM capture..."
-  },
-  "statusSendMarkdown": {
-    "message": "Sending Markdown (text source)..."
-  },
-  "statusImportedMarkdown": {
-    "message": "✅ Markdown imported!"
-  },
-  "statusCheckQuota": {
-    "message": "Checking security quotas..."
-  },
-  "statusSendPdf": {
-    "message": "Sending PDF (Google Servers)..."
-  },
-  "statusImportedPdf": {
-    "message": "✅ PDF imported!"
-  },
-  "errGetNotebooks": {
-    "message": "Could not retrieve your notebooks. Check your connection and reload.",
-    "description": "Error when listing notebooks fails"
-  },
-  "errCreateNotebook": {
-    "message": "Could not create the notebook. Check your connection and try again.",
-    "description": "Error when notebook creation fails"
-  },
-  "errSelectionFailed": {
-    "message": "Could not import the selection. Please try again.",
-    "description": "Error when selection import fails"
-  },
-  "errWorkflowFailed": {
-    "message": "An error occurred during import. Check the console for details.",
-    "description": "Generic workflow error"
-  },
-  "errInjectionFailed": {
-    "message": "Cannot activate the clipper on this page (system or restricted page).",
-    "description": "Error when script injection fails on a restricted page"
-  },
-  "popupTitleAccountSwitcher": {
-    "message": "Switch Google account"
-  },
-  "statusConnecting": {
-    "message": "Connecting..."
-  },
-  "btnCreateNotebookTitle": {
-    "message": "Create a new notebook"
-  },
-  "btnPdfTitle": {
-    "message": "Embedded images, visual layout"
-  },
-  "btnMarkdownTitle": {
-    "message": "Perfect tables, ultra-light, native Gemini"
-  },
-  "btnUrlTitle": {
-    "message": "Instant import — NotebookLM scrapes the page"
-  },
-  "btnScreenshotTitle": {
-    "message": "Capture visible viewport as PNG"
-  },
-  "btnDriveTitle": {
-    "message": "Native Google Drive sync"
-  },
-  "btnDirectTitle": {
-    "message": "Import the original file as is"
-  },
-  "btnClearSelectionTitle": {
-    "message": "Cancel"
+    "message": "An error occurred. Check the console for details.",
+    "description": "Error code UNKNOWN"
+  },
+  "btnReconnect": {
+    "message": "Reconnect",
+    "description": "Button shown after AUTH_EXPIRED to re-open the auth tab"
+  },
+  "warningPartialImport": {
+    "message": "$COUNT$ attachment(s) could not be imported.",
+    "description": "Warning shown in SUCCESS state when some attachments failed",
+    "placeholders": {
+      "COUNT": { "content": "$1", "example": "1" }
+    }
   }
 }

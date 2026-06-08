@@ -1,97 +1,149 @@
 <!DOCTYPE html>
-<html lang="fr">
+<html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>NotebookLM Web Clipper</title>
-  <link rel="stylesheet" href="popup.css">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NotebookLM Clipper</title>
+  <link rel="stylesheet" href="popup.css" />
 </head>
 <body>
-  <!-- HEADER -->
-  <header class="app-header">
-    <div class="logo">
-      <div class="logo-icon"></div>
-    </div>
-    <div class="header-right" style="display: flex; align-items: center; gap: 8px;">
-      <select id="locale-selector" class="locale-selector" title="Langue" data-i18n-title="popupLabelLocale">
-        <option value="auto">Auto</option>
-        <option value="gcf">Kréyòl</option>
-      </select>
-      <select id="account-switcher" class="hidden" title="Changer de compte Google" data-i18n-title="popupTitleAccountSwitcher"></select>
-      <div id="auth-status" class="status-badge status-loading" data-i18n="statusConnecting">Connexion...</div>
-    </div>
-  </header>
 
-  <!-- RECHERCHE & SELECTION CARNET -->
-  <section class="research-section">
-    <label for="notebook-search" data-i18n="popupLabelSelectNotebook">Vos Carnets</label>
-    <div class="input-group">
-      <input type="text" id="notebook-search" placeholder="Rechercher un carnet (Fast Research)..." disabled data-i18n-placeholder="popupPlaceholderSearchNotebook" />
-      <button id="btn-create-notebook" title="Créer un nouveau carnet" data-i18n-title="btnCreateNotebookTitle">+</button>
+  <!-- ═══════════════════════════════════════════════════
+       STATE : auth-required
+       Affiché en premier lancement ou session expirée.
+  ════════════════════════════════════════════════════ -->
+  <section id="state-auth-required" class="state" aria-live="polite">
+    <div class="brand">
+      <img src="/icons/icon.svg" alt="NotebookLM Clipper" class="brand-icon" />
+      <span class="brand-name">NotebookLM Clipper</span>
     </div>
-    
-    <!-- Liste des carnets filtrés -->
-    <div id="notebook-list" class="notebook-list">
-        <div class="placeholder-text" data-i18n="loadingNotebooks">Veuillez patienter...</div>
-    </div>
+    <h1 class="state-heading" data-i18n="stateAuthRequired"></h1>
+    <p class="state-body" data-i18n="stateAuthRequiredBody"></p>
+    <button id="btn-connect" class="btn btn-primary" data-i18n="btnConnect"></button>
   </section>
 
-  <!-- FORMAT TOGGLE -->
-  <section class="format-section">
-    <label data-i18n="popupLabelFormat">Format d'import</label>
-    <div class="format-toggle" id="format-toggle">
-      <button class="format-btn active" data-format="pdf" title="Images intégrées, mise en page visuelle" data-i18n="btnPdf" data-i18n-aria-label="btnPdfAriaLabel" data-i18n-title="btnPdfTitle">📄 PDF</button>
-      <button class="format-btn" data-format="md" title="Tables parfaites, ultra-léger, natif Gemini" data-i18n="btnMarkdown" data-i18n-aria-label="btnMarkdownAriaLabel" data-i18n-title="btnMarkdownTitle">📝 Markdown</button>
-      <button class="format-btn" data-format="url" title="Import instantané — NotebookLM scrape la page" data-i18n="btnUrl" data-i18n-aria-label="btnUrlAriaLabel" data-i18n-title="btnUrlTitle">🔗 URL</button>
-      <button class="format-btn" data-format="screenshot" title="Capture le viewport visible en PNG" data-i18n="btnScreenshot" data-i18n-aria-label="btnScreenshotAriaLabel" data-i18n-title="btnScreenshotTitle">📸</button>
-      <button class="format-btn" data-format="drive" id="btn-drive-import" style="display: none;" title="Synchronisation native Google Drive" data-i18n="btnDrive" data-i18n-aria-label="btnDriveAriaLabel" data-i18n-title="btnDriveTitle">☁️ Drive</button>
+  <!-- ═══════════════════════════════════════════════════
+       STATE : loading
+       Affiché pendant les requêtes async.
+  ════════════════════════════════════════════════════ -->
+  <section id="state-loading" class="state hidden" aria-live="polite" aria-busy="true">
+    <div class="spinner" aria-hidden="true"></div>
+    <p class="state-body" data-i18n="stateLoading"></p>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════════
+       STATE : ready
+       Affichage des métadonnées email + sélecteur carnet + boutons d'import.
+  ════════════════════════════════════════════════════ -->
+  <section id="state-ready" class="state hidden">
+
+    <!-- Métadonnées email -->
+    <div class="email-meta glass">
+      <div class="meta-row">
+        <span class="meta-label" data-i18n="labelSubject"></span>
+        <span id="meta-subject" class="meta-value"></span>
+      </div>
+      <div class="meta-row">
+        <span class="meta-label" data-i18n="labelFrom"></span>
+        <span id="meta-from" class="meta-value"></span>
+      </div>
+      <div class="meta-row">
+        <span class="meta-label" data-i18n="labelDate"></span>
+        <span id="meta-date" class="meta-value"></span>
+      </div>
     </div>
-    <!-- Bouton Import Direct : masqué par défaut, affiché dynamiquement -->
-    <div id="direct-import-section" class="direct-import-section hidden">
-      <button class="format-btn format-btn-direct" data-format="direct" id="btn-direct-import" title="Importer le fichier original tel quel" data-i18n-aria-label="btnDirectAriaLabel" data-i18n-title="btnDirectTitle">
-        ⚡ <span id="direct-label" data-i18n="btnDirect">Import direct</span>
+
+    <!-- Sélecteur de carnet -->
+    <div class="section">
+      <label class="section-label" data-i18n="labelNotebook"></label>
+      <div class="notebook-search-row">
+        <input id="notebook-search" type="search"
+               data-i18n-placeholder="placeholderSearch"
+               class="input-search" autocomplete="off" />
+        <button id="btn-create-notebook" class="btn btn-icon" title="" data-i18n-title="btnCreateNotebook">+</button>
+      </div>
+      <ul id="notebook-list" class="notebook-list" role="listbox" aria-label="Notebooks"></ul>
+    </div>
+
+    <!-- Note d'intention (masquée pour les PJ) -->
+    <div id="intent-wrapper" class="section">
+      <label class="section-label" data-i18n="intentNoteLabelVisible" for="intent-note"></label>
+      <textarea id="intent-note" class="input-textarea"
+                data-i18n-placeholder="intentNotePlaceholder"
+                rows="2"></textarea>
+    </div>
+
+    <!-- Boutons d'import email -->
+    <div id="import-btns" class="btn-group">
+      <button id="btn-pdf" class="btn btn-import" data-i18n="btnPdf" data-format="pdf"></button>
+      <button id="btn-md"  class="btn btn-import" data-i18n="btnMd"  data-format="md"></button>
+    </div>
+
+    <!-- Section Pièces Jointes (conditionnelle) -->
+    <div id="attachments-section" class="section hidden">
+      <label class="section-label" data-i18n="labelAttachments"></label>
+      <ul id="attachment-list" class="attachment-list"></ul>
+      <button id="btn-import-attachments" class="btn btn-primary hidden" disabled>
+        <!-- Contenu mis à jour dynamiquement par updateImportButtonLabel() -->
       </button>
     </div>
-  </section>
 
-  <!-- BANDEAU SÉLECTION (affiché quand une sélection est en attente) -->
-  <section id="selection-banner" class="selection-banner hidden">
-    <div class="selection-info">
-      <span class="selection-icon">📋</span>
-      <span id="selection-text-preview" data-i18n="notifSelectionCaptured">Sélection capturée</span>
+    <!-- Sélecteur de compte -->
+    <div id="account-section" class="section account-row hidden">
+      <label class="section-label" data-i18n="labelAccount" for="account-select"></label>
+      <select id="account-select" class="input-select"></select>
     </div>
-    <button id="btn-clear-selection" class="selection-clear" title="Annuler" data-i18n-title="btnClearSelectionTitle">✕</button>
+
   </section>
 
-  <!-- ACTION PRINCIPALE -->
-  <section class="action-section">
-    <div id="intent-wrapper" class="intent-wrapper">
-      <textarea
-        id="intent-input"
-        class="intent-input"
-        rows="2"
-        maxlength="300"
-        placeholder="Note pour l'IA (optionnel) — ex : Comparer avec le rapport 2024"
-        aria-label="Note d'intention pour NotebookLM"
-        data-i18n-placeholder="intentNotePlaceholder"
-        data-i18n-aria-label="intentNoteLabelVisible"
-      ></textarea>
-      <span id="intent-counter" class="intent-counter">0 / 300</span>
+  <!-- ═══════════════════════════════════════════════════
+       STATE : capturing
+       Affiché pendant la génération / l'upload.
+  ════════════════════════════════════════════════════ -->
+  <section id="state-capturing" class="state hidden" aria-live="polite" aria-busy="true">
+    <div class="spinner" aria-hidden="true"></div>
+    <p id="capturing-status" class="state-body" data-i18n="statusCapturing"></p>
+    <div id="batch-progress" class="batch-progress hidden">
+      <div class="progress-bar-track">
+        <div id="progress-bar-fill" class="progress-bar-fill"></div>
+      </div>
+      <p id="batch-progress-label" class="progress-label"></p>
     </div>
-    <button id="btn-capture" class="btn primary-btn" disabled>
-      <span class="btn-text" data-i18n="popupTitleCapture">Capturer la page</span>
-      <span id="btn-spinner" class="spinner hidden"></span>
-    </button>
   </section>
 
-  <!-- ZONE DE STATUT / INDICATEURS -->
-  <footer class="app-footer">
-    <div id="status-message" class="status-message" data-i18n="popupStatusReady">Prêt</div>
-  </footer>
+  <!-- ═══════════════════════════════════════════════════
+       STATE : success
+       Import terminé avec succès.
+  ════════════════════════════════════════════════════ -->
+  <section id="state-success" class="state hidden" aria-live="polite">
+    <div class="success-circle" aria-hidden="true">
+      <div class="success-icon">✓</div>
+    </div>
+    <p class="state-body" data-i18n="statusSuccess"></p>
+    <div id="warnings-container" class="warnings hidden"></div>
+    <div class="action-row">
+      <a id="btn-open-notebook" class="btn btn-primary" target="_blank" rel="noopener noreferrer"
+         data-i18n="btnOpenNotebook"></a>
+      <button id="btn-download" class="btn btn-secondary hidden" data-i18n="btnDownload"></button>
+    </div>
+    <button id="btn-new-import" class="btn btn-ghost" data-i18n="btnNewImport"></button>
+  </section>
 
-  <!-- BOUTON FERMER (Autonome, pour mobile et desktop) -->
-  <button id="btn-close" class="btn close-btn" data-i18n="btnClose">✖ Fermer</button>
+  <!-- ═══════════════════════════════════════════════════
+       STATE : error
+       Affiché en cas d'erreur.
+  ════════════════════════════════════════════════════ -->
+  <section id="state-error" class="state hidden" aria-live="assertive">
+    <div class="error-circle" aria-hidden="true">
+      <div class="error-icon">✕</div>
+    </div>
+    <p id="error-message" class="state-body error-text"></p>
+    <button id="btn-reconnect" class="btn btn-primary hidden" data-i18n="btnReconnect"></button>
+    <button id="btn-back" class="btn btn-secondary" data-i18n="btnBack"></button>
+  </section>
 
-  <script type="module" src="popup.js"></script>
+  <script src="/src/popup/pre_loader.js"></script>
+  <script src="/src/shared/utils.js"></script>
+  <script src="/src/popup/popup.js"></script>
 </body>
 </html>

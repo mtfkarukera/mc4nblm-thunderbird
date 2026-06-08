@@ -1,63 +1,49 @@
 {
-  "manifest_version": 3,
+  "manifest_version": 2,
   "name": "__MSG_extensionName__",
-  "short_name": "Magic Clipper",
-  "version": "6.0.0",
+  "version": "1.0.0",
   "default_locale": "en",
   "description": "__MSG_extensionDescription__",
   "browser_specific_settings": {
     "gecko": {
-      "id": "notebooklm-web-clipper@mtfkarukera",
-      "strict_min_version": "142.0",
-      "data_collection_permissions": {
-        "required": [
-          "none"
-        ]
-      }
-    },
-    "gecko_android": {
-      "strict_min_version": "142.0"
+      "id": "notebooklm-clipper-tb@mtfkarukera.dev",
+      "strict_min_version": "115.0"
+    }
+  },
+  "background": {
+    "scripts": [
+      "src/shared/utils.js",
+      "src/background/api/auth.js",
+      "src/background/api/rpc_client.js",
+      "src/background/background.js"
+    ]
+  },
+  "message_display_action": {
+    "default_popup": "src/popup/popup.html",
+    "default_title": "__MSG_actionTitle__",
+    "default_icon": {
+      "48": "icons/icon.svg",
+      "128": "icons/icon.svg"
     }
   },
   "permissions": [
+    "messagesRead",
+    "messagesModify",
+    "accountsRead",
     "storage",
     "cookies",
-    "activeTab",
-    "notifications",
     "downloads",
-    "contextMenus",
-    "scripting"
+    "notifications",
+    "scripting",
+    "sensitiveDataUpload",
+    "*://*.google.com/*"
   ],
-  "content_security_policy": {
-    "extension_pages": "script-src 'self'; object-src 'none';"
-  },
-  "host_permissions": [
-    "<all_urls>"
+  "content_security_policy": "script-src 'self'; object-src 'none';",
+  "web_accessible_resources": [
+    "lib/*"
   ],
-  "background": {
-    "scripts": [
-      "src/background/background.js"
-    ],
-    "type": "module"
-  },
   "icons": {
     "48": "icons/icon.svg",
     "128": "icons/icon.svg"
-  },
-  "action": {
-    "default_icon": "icons/icon.svg",
-    "default_popup": "src/popup/popup.html",
-    "default_title": "Clip to NotebookLM"
-  },
-  "content_scripts": [
-    {
-      "matches": [
-        "<all_urls>"
-      ],
-      "js": [
-        "src/content/orchestrator.js"
-      ],
-      "run_at": "document_idle"
-    }
-  ]
+  }
 }
