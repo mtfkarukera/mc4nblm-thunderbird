@@ -216,7 +216,7 @@ var NtcUtils = (function () {
    * Convertit un élément table en tableau Markdown.
    */
   function tableToMarkdown(tableNode) {
-    const rows = tableNode.querySelectorAll('tr');
+    const rows = tableNode.querySelectorAll(':scope > tr, :scope > tbody > tr, :scope > thead > tr, :scope > tfoot > tr');
     if (rows.length === 0) return '';
 
     const mdLines = [];

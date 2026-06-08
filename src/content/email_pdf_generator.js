@@ -20,8 +20,18 @@ window.__ntc_generate_pdf = function (grounding, intentNote) {
       }
 
       // 1. Estimation des mots
-      const innerText = document.body ? (document.body.innerText || document.body.textContent || '') : '';
-      const wordCount = innerText.split(/\s+/).filter(Boolean).length;
+      let textContentCleaned = '';
+      if (document.body) {
+        if (document.body.innerText) {
+          textContentCleaned = document.body.innerText;
+        } else {
+          // Fallback sur textContent en nettoyant d'abord les scripts et styles
+          const clone = document.body.cloneNode(true);
+          clone.querySelectorAll('script, style').forEach(el => el.remove());
+          textContentCleaned = clone.textContent || '';
+        }
+      }
+      const wordCount = textContentCleaned.split(/\s+/).filter(Boolean).length;
       if (wordCount > 500000) {
         throw new Error("L'email dépasse la limite de 500 000 mots.");
       }
@@ -106,14 +116,14 @@ window.__ntc_generate_pdf = function (grounding, intentNote) {
       }
 
       function renderTable(tableNode) {
-        const rows = tableNode.querySelectorAll('tr');
+        const rows = tableNode.querySelectorAll(':scope > tr, :scope > tbody > tr, :scope > thead > tr, :scope > tfoot > tr');
         if (rows.length === 0) return;
 
         const mdLines = [];
         let colCount = 0;
 
         rows.forEach((row, rowIndex) => {
-          const cells = row.querySelectorAll('th, td');
+          const cells = row.querySelectorAll(':scope > th, :scope > td');
           if (cells.length === 0) return;
 
           const cellTexts = [];

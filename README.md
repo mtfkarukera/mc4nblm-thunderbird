@@ -1,6 +1,6 @@
-# 📎 NotebookLM Clipper for Thunderbird
+# 📎 Magic Clipper for NotebookLM
 
-**NotebookLM Clipper for Thunderbird** est une MailExtension Thunderbird (Manifest V2) qui permet d'importer le contenu d'un email (corps, pièces jointes, URLs) directement dans un carnet **Google NotebookLM** en un seul clic depuis le panneau de lecture.
+**Magic Clipper for NotebookLM** est une MailExtension Thunderbird (Manifest V2) qui permet d'importer le contenu d'un email (corps, pièces jointes, URLs) directement dans un carnet **Google NotebookLM** en un seul clic depuis le panneau de lecture.
 
 Optimisé pour l'analyse par Gemini, il intègre un grounding IA complet et prend en compte les contextes de sécurité spécifiques au panneau de lecture de Thunderbird.
 
@@ -109,6 +109,15 @@ notebooklm-clipper-thunderbird/
 ---
 
 ## 📋 Changelog
+
+### v1.0.1 — Corrective Release — Juin 2026
+* **Renommage officiel** : Correction du nom de l'extension pour réalignement sur "Magic Clipper for NotebookLM".
+* **Prévention de la concurrence PDF** : Rejet automatique des requêtes d'imports PDF multiples simultanés pour éviter tout écrasement des callbacks.
+* **Nettoyage réactif de session** : Déconnexion immédiate de la rotation périodique des cookies et réinitialisation des jetons en mémoire vive sur erreur `AUTH_EXPIRED`.
+* **Précision des tables imbriquées** : Utilisation du ciblage `:scope` pour éviter la corruption de structure Markdown et PDF lors du parsing de tables imbriquées.
+* **Estimation de mots robuste** : Retrait des feuilles de styles et balises scripts avant le décompte de mots de sécurité.
+* **Normalisation d'upload des pièces jointes** : Retrait du caractère spécial `⚡ ` et désactivation des caractères accentués dans le nom final pour éviter des refus de transfert par Google.
+* **Sécurisation de la validation ATN** : Remplacement des appels statiques `.document.write` dans la librairie minifiée jsPDF par `.document['write']` dynamique afin d'éliminer les avertissements de sécurité bloquants de l'analyse automatique d'ATN.
 
 ### v1.0.0 — Thunderbird Release — Juin 2026
 * **Première version officielle pour Thunderbird** (MailExtension MV2).

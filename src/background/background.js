@@ -31,6 +31,14 @@ const STORAGE_KEYS = {
   LAST_NOTEBOOK: 'ntc_last_notebook_id',
 };
 
+function clearAuthSession() {
+  _csrfToken = null;
+  _sessionId = null;
+  try {
+    NtcAuth.stopCookieRotationSchedule();
+  } catch (_e) {}
+}
+
 // ─────────────────────────────────────────────
 // ENREGISTREMENT DU MESSAGE DISPLAY SCRIPT
 // ─────────────────────────────────────────────
@@ -453,6 +461,7 @@ async function handleStartCapture(message) {
   const cookieMap = await NtcAuth.collectGoogleCookies();
   const { valid } = NtcAuth.validateCookies(cookieMap);
   if (!valid) {
+    clearAuthSession();
     notifyUI({ status: 'error', code: 'AUTH_EXPIRED' });
     return;
   }
@@ -462,6 +471,9 @@ async function handleStartCapture(message) {
     _csrfToken = tokens.csrfToken;
     _sessionId = tokens.sessionId;
   } catch (e) {
+    if (e.code === 'AUTH_EXPIRED') {
+      clearAuthSession();
+    }
     notifyUI({ status: 'error', code: e.code || 'UNKNOWN', detail: getRichErrorDetail(e) });
     return;
   }
@@ -478,12 +490,21 @@ async function handleStartCapture(message) {
     }
   } catch (e) {
     console.error('[NTC] Capture error :', e.message);
+    if (e.code === 'AUTH_EXPIRED') {
+      clearAuthSession();
+    }
     notifyUI({ status: 'error', code: e.code || 'UNKNOWN', detail: getRichErrorDetail(e) });
   }
 }
 
 // ── Pipeline PDF (Phase 3) ──────────────────
 async function handlePdfCapture(message) {
+  if (_pendingPdfResolve) {
+    const err = new Error('Une capture PDF est déjà en cours.');
+    err.code = 'INJECTION_FAILED';
+    notifyUI({ status: 'error', code: err.code, detail: err.message });
+    return;
+  }
   notifyUI({ status: 'capturing', statusKey: 'statusCapturing' });
 
   let mailTab, header;
@@ -696,7 +717,9 @@ async function handleAttachmentCapture(message) {
 
     try {
       const fileBlob = await messenger.messages.getAttachmentFile(message.messageId, att.partName);
-      const filename = NtcUtils.sanitizeFilename(`⚡ ${att.name}`);
+      // Remplacer le préfixe ⚡ par [PJ] et enlever les accents du nom de fichier
+      let cleanName = (att.name || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+      const filename = NtcUtils.sanitizeFilename(`[PJ] ${cleanName}`);
 
       await NtcRpc.uploadFileSource(
         _csrfToken,
