@@ -110,6 +110,11 @@ notebooklm-clipper-thunderbird/
 
 ## 📋 Changelog
 
+### v1.0.2 — Localization & Assets Release — Juin 2026
+* **Localisation complète** : Finalisation et correction des traductions pour l'allemand, l'espagnol, l'vietnamien, le japonais et le portugais (7 locales supportées).
+* **Ressources icônes** : Génération des icônes PNG carrées haute fidélité (`icon.png` et `icon@2x.png`) pour Thunderbird.
+* **Sécurisation ESLint** : Ajout d'une règle stricte de blocage d'`innerHTML` pour prévenir les vulnérabilités XSS et respecter les recommandations ATN.
+
 ### v1.0.1 — Corrective Release — Juin 2026
 * **Renommage officiel** : Correction du nom de l'extension pour réalignement sur "Magic Clipper for NotebookLM".
 * **Prévention de la concurrence PDF** : Rejet automatique des requêtes d'imports PDF multiples simultanés pour éviter tout écrasement des callbacks.

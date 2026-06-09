@@ -4,31 +4,31 @@
     "description": "Extension name displayed in Thunderbird Add-on Manager"
   },
   "extensionDescription": {
-    "message": "Importa correos electrónicos, archivos adjuntos y enlaces directamente a Google NotebookLM con un solo clic.",
+    "message": "Importe e-mails, anexos e links diretamente para o Google NotebookLM com um único clique.",
     "description": "Extension description displayed in Thunderbird Add-on Manager"
   },
   "actionTitle": {
-    "message": "Importar a NotebookLM",
+    "message": "Salvar no NotebookLM",
     "description": "Tooltip on the message_display_action button"
   },
   "stateAuthRequired": {
-    "message": "Iniciar sesión en NotebookLM",
+    "message": "Fazer login no NotebookLM",
     "description": "Heading shown when authentication is needed"
   },
   "stateAuthRequiredBody": {
-    "message": "Conecta tu cuenta de Google para comenzar a importar correos electrónicos a NotebookLM.",
+    "message": "Conecte sua conta do Google para começar a importar e-mails para o NotebookLM.",
     "description": "Explanation text in the auth-required state"
   },
   "btnConnect": {
-    "message": "Conectar a NotebookLM",
+    "message": "Conectar ao NotebookLM",
     "description": "Button to open the NotebookLM auth tab"
   },
   "stateLoading": {
-    "message": "Cargando…",
+    "message": "Carregando…",
     "description": "Generic loading message"
   },
   "labelSubject": {
-    "message": "Asunto",
+    "message": "Assunto",
     "description": "Label for the email subject metadata row"
   },
   "labelFrom": {
@@ -36,31 +36,31 @@
     "description": "Label for the email sender metadata row"
   },
   "labelDate": {
-    "message": "Fecha",
+    "message": "Data",
     "description": "Label for the email date metadata row"
   },
   "labelNotebook": {
-    "message": "Cuaderno",
+    "message": "Caderno",
     "description": "Label above the notebook selector"
   },
   "placeholderSearch": {
-    "message": "Buscar cuadernos…",
+    "message": "Pesquisar cadernos…",
     "description": "Placeholder text for the Fast Research notebook search input"
   },
   "btnCreateNotebook": {
-    "message": "+ Nuevo cuaderno",
+    "message": "+ Novo caderno",
     "description": "Button to create a new notebook"
   },
   "loadingNotebooks": {
-    "message": "Cargando cuadernos…",
+    "message": "Carregando cadernos…",
     "description": "Shown while notebooks are being fetched"
   },
   "noNotebookFound": {
-    "message": "No se encontró ningún cuaderno.",
+    "message": "Nenhum caderno encontrado.",
     "description": "Shown when notebook list is empty or search has no results"
   },
   "errNoNotebook": {
-    "message": "Por favor, seleccione un cuaderno primero.",
+    "message": "Selecione um caderno primeiro.",
     "description": "Error when user tries to import without selecting a notebook"
   },
   "btnPdf": {
@@ -76,19 +76,19 @@
     "description": "Button to import a URL detected in the email"
   },
   "intentNoteLabelVisible": {
-    "message": "Intención de investigación (opcional)",
+    "message": "Intenção de pesquisa (opcional)",
     "description": "Label for the intent note textarea"
   },
   "intentNotePlaceholder": {
-    "message": "Describa su objetivo de investigación…",
+    "message": "Descreva seu objetivo de pesquisa…",
     "description": "Placeholder text for the intent note textarea"
   },
   "labelAttachments": {
-    "message": "Archivos adjuntos",
+    "message": "Anexos",
     "description": "Label above the attachment checkboxes list"
   },
   "btnImportSelection": {
-    "message": "Importar selección ($COUNT$)",
+    "message": "Importar seleção ($COUNT$)",
     "description": "Button to import selected attachments",
     "placeholders": {
       "COUNT": {
@@ -98,19 +98,19 @@
     }
   },
   "labelAccount": {
-    "message": "Cuenta de Google",
+    "message": "Conta do Google",
     "description": "Label above the account switcher dropdown"
   },
   "statusCapturing": {
-    "message": "Generando…",
+    "message": "Gerando…",
     "description": "Shown while the PDF or Markdown is being generated"
   },
   "statusUploading": {
-    "message": "Subiendo…",
+    "message": "Enviando…",
     "description": "Shown while the file is being uploaded to NotebookLM"
   },
   "statusBatchProgress": {
-    "message": "Importando archivo adjunto $CURRENT$ de $TOTAL$…",
+    "message": "Importando anexo $CURRENT$ de $TOTAL$…",
     "description": "Progress message during grouped attachment import",
     "placeholders": {
       "CURRENT": { "content": "$1", "example": "2" },
@@ -118,7 +118,7 @@
     }
   },
   "statusSuccess": {
-    "message": "Importado con éxito ✓",
+    "message": "Importado com sucesso ✓",
     "description": "Shown on successful import"
   },
   "btnOpenNotebook": {
@@ -126,15 +126,15 @@
     "description": "Button to open the notebook after a successful import"
   },
   "btnDownload": {
-    "message": "Descargar ↓",
+    "message": "Baixar ↓",
     "description": "Button to download the generated PDF or MD file locally"
   },
   "btnBack": {
-    "message": "← Volver",
+    "message": "← Voltar",
     "description": "Button to return to the READY state after an error"
   },
   "btnNewImport": {
-    "message": "Nueva importación",
+    "message": "Nova importação",
     "description": "Button to start a new import after success"
   },
   "btnImportUrl": {
@@ -142,39 +142,39 @@
     "description": "Button to confirm URL selection in the URL selector state"
   },
   "errorApiChanged": {
-    "message": "La API de NotebookLM ha sido modificada. Se requiere una actualización.",
+    "message": "A API do NotebookLM foi modificada. Atualização necessária.",
     "description": "Error code API_CHANGED"
   },
   "errorAuthExpired": {
-    "message": "Sesión expirada. Inicie sesión en NotebookLM nuevamente.",
+    "message": "Sessão expirada. Faça login no NotebookLM novamente.",
     "description": "Error code AUTH_EXPIRED"
   },
   "errorUploadSessionMissing": {
-    "message": "Error al inicializar la subida. Inténtelo de nuevo.",
+    "message": "Erro ao inicializar o upload. Tente novamente.",
     "description": "Error code UPLOAD_SESSION_MISSING"
   },
   "errorTimeout": {
-    "message": "La solicitud ha expirado. Compruebe su conexión.",
+    "message": "A solicitação expirou. Verifique sua conexão.",
     "description": "Error code TIMEOUT"
   },
   "errorInjectionFailed": {
-    "message": "No se puede activar el clipper en este correo electrónico.",
+    "message": "Não é possível ativar o clipper neste e-mail.",
     "description": "Error code INJECTION_FAILED"
   },
   "errorNoEmailDisplayed": {
-    "message": "Abra un correo electrónico para usar esta extensión.",
+    "message": "Abra um e-mail para usar esta extensão.",
     "description": "Error code NO_EMAIL_DISPLAYED"
   },
   "errorEmptyEmailBody": {
-    "message": "Este correo electrónico no contiene contenido importable.",
+    "message": "Este e-mail não contém conteúdo importável.",
     "description": "Error code EMPTY_EMAIL_BODY"
   },
   "errorAttachmentTooLarge": {
-    "message": "Este archivo supera el límite de 200 MB.",
+    "message": "Este arquivo excede o limite de 200 MB.",
     "description": "Error code ATTACHMENT_TOO_LARGE"
   },
   "errorUnknown": {
-    "message": "Ocurrió un error. Consulte la consola para más detalles.",
+    "message": "Ocorreu um erro. Verifique o console para obter detalhes.",
     "description": "Error code UNKNOWN"
   },
   "btnReconnect": {
@@ -182,7 +182,7 @@
     "description": "Button shown after AUTH_EXPIRED to re-open the auth tab"
   },
   "warningPartialImport": {
-    "message": "No se pudieron importar $COUNT$ archivo(s) adjunto(s).",
+    "message": "Não foi possível importar $COUNT$ anexo(s).",
     "description": "Warning shown in SUCCESS state when some attachments failed",
     "placeholders": {
       "COUNT": { "content": "$1", "example": "1" }

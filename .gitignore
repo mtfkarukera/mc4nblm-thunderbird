@@ -35,4 +35,5 @@ tools/
 # Temporary SQLite and Node files
 cookies_copy.sqlite*
 node_modules/
+scratch/
 

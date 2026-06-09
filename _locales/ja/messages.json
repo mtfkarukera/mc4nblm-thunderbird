@@ -4,63 +4,63 @@
     "description": "Extension name displayed in Thunderbird Add-on Manager"
   },
   "extensionDescription": {
-    "message": "Importa correos electrónicos, archivos adjuntos y enlaces directamente a Google NotebookLM con un solo clic.",
+    "message": "ワンクリックでメール、添付ファイル、リンクをGoogle NotebookLMに直接インポートします。",
     "description": "Extension description displayed in Thunderbird Add-on Manager"
   },
   "actionTitle": {
-    "message": "Importar a NotebookLM",
+    "message": "NotebookLM に保存",
     "description": "Tooltip on the message_display_action button"
   },
   "stateAuthRequired": {
-    "message": "Iniciar sesión en NotebookLM",
+    "message": "NotebookLM にログイン",
     "description": "Heading shown when authentication is needed"
   },
   "stateAuthRequiredBody": {
-    "message": "Conecta tu cuenta de Google para comenzar a importar correos electrónicos a NotebookLM.",
+    "message": "Google アカウントを接続して、メールの NotebookLM へのインポートを開始します。",
     "description": "Explanation text in the auth-required state"
   },
   "btnConnect": {
-    "message": "Conectar a NotebookLM",
+    "message": "NotebookLM に接続",
     "description": "Button to open the NotebookLM auth tab"
   },
   "stateLoading": {
-    "message": "Cargando…",
+    "message": "読み込み中…",
     "description": "Generic loading message"
   },
   "labelSubject": {
-    "message": "Asunto",
+    "message": "件名",
     "description": "Label for the email subject metadata row"
   },
   "labelFrom": {
-    "message": "De",
+    "message": "差出人",
     "description": "Label for the email sender metadata row"
   },
   "labelDate": {
-    "message": "Fecha",
+    "message": "日付",
     "description": "Label for the email date metadata row"
   },
   "labelNotebook": {
-    "message": "Cuaderno",
+    "message": "ノートブック",
     "description": "Label above the notebook selector"
   },
   "placeholderSearch": {
-    "message": "Buscar cuadernos…",
+    "message": "ノートブックを検索…",
     "description": "Placeholder text for the Fast Research notebook search input"
   },
   "btnCreateNotebook": {
-    "message": "+ Nuevo cuaderno",
+    "message": "+ 新しいノートブック",
     "description": "Button to create a new notebook"
   },
   "loadingNotebooks": {
-    "message": "Cargando cuadernos…",
+    "message": "ノートブックを読み込み中…",
     "description": "Shown while notebooks are being fetched"
   },
   "noNotebookFound": {
-    "message": "No se encontró ningún cuaderno.",
+    "message": "ノートブックが見つかりません。",
     "description": "Shown when notebook list is empty or search has no results"
   },
   "errNoNotebook": {
-    "message": "Por favor, seleccione un cuaderno primero.",
+    "message": "最初にノートブックを選択してください。",
     "description": "Error when user tries to import without selecting a notebook"
   },
   "btnPdf": {
@@ -76,19 +76,19 @@
     "description": "Button to import a URL detected in the email"
   },
   "intentNoteLabelVisible": {
-    "message": "Intención de investigación (opcional)",
+    "message": "検索の目的（任意）",
     "description": "Label for the intent note textarea"
   },
   "intentNotePlaceholder": {
-    "message": "Describa su objetivo de investigación…",
+    "message": "検索の目的や目標を入力…",
     "description": "Placeholder text for the intent note textarea"
   },
   "labelAttachments": {
-    "message": "Archivos adjuntos",
+    "message": "添付ファイル",
     "description": "Label above the attachment checkboxes list"
   },
   "btnImportSelection": {
-    "message": "Importar selección ($COUNT$)",
+    "message": "選択項目をインポート ($COUNT$)",
     "description": "Button to import selected attachments",
     "placeholders": {
       "COUNT": {
@@ -98,19 +98,19 @@
     }
   },
   "labelAccount": {
-    "message": "Cuenta de Google",
+    "message": "Google アカウント",
     "description": "Label above the account switcher dropdown"
   },
   "statusCapturing": {
-    "message": "Generando…",
+    "message": "生成中…",
     "description": "Shown while the PDF or Markdown is being generated"
   },
   "statusUploading": {
-    "message": "Subiendo…",
+    "message": "アップロード中…",
     "description": "Shown while the file is being uploaded to NotebookLM"
   },
   "statusBatchProgress": {
-    "message": "Importando archivo adjunto $CURRENT$ de $TOTAL$…",
+    "message": "添付ファイル $CURRENT$ / $TOTAL$ をインポート中…",
     "description": "Progress message during grouped attachment import",
     "placeholders": {
       "CURRENT": { "content": "$1", "example": "2" },
@@ -118,71 +118,71 @@
     }
   },
   "statusSuccess": {
-    "message": "Importado con éxito ✓",
+    "message": "インポートが完了しました ✓",
     "description": "Shown on successful import"
   },
   "btnOpenNotebook": {
-    "message": "Abrir →",
+    "message": "開く →",
     "description": "Button to open the notebook after a successful import"
   },
   "btnDownload": {
-    "message": "Descargar ↓",
+    "message": "ダウンロード ↓",
     "description": "Button to download the generated PDF or MD file locally"
   },
   "btnBack": {
-    "message": "← Volver",
+    "message": "← 戻る",
     "description": "Button to return to the READY state after an error"
   },
   "btnNewImport": {
-    "message": "Nueva importación",
+    "message": "新規インポート",
     "description": "Button to start a new import after success"
   },
   "btnImportUrl": {
-    "message": "Importar esta URL",
+    "message": "この URL をインポート",
     "description": "Button to confirm URL selection in the URL selector state"
   },
   "errorApiChanged": {
-    "message": "La API de NotebookLM ha sido modificada. Se requiere una actualización.",
+    "message": "NotebookLM の API が変更されました。アップデートが必要です。",
     "description": "Error code API_CHANGED"
   },
   "errorAuthExpired": {
-    "message": "Sesión expirada. Inicie sesión en NotebookLM nuevamente.",
+    "message": "セッションが期限切れです。NotebookLM に再ログインしてください。",
     "description": "Error code AUTH_EXPIRED"
   },
   "errorUploadSessionMissing": {
-    "message": "Error al inicializar la subida. Inténtelo de nuevo.",
+    "message": "アップロードの初期化に失敗しました。もう一度お試しください。",
     "description": "Error code UPLOAD_SESSION_MISSING"
   },
   "errorTimeout": {
-    "message": "La solicitud ha expirado. Compruebe su conexión.",
+    "message": "要求がタイムアウトしました。接続を確認してください。",
     "description": "Error code TIMEOUT"
   },
   "errorInjectionFailed": {
-    "message": "No se puede activar el clipper en este correo electrónico.",
+    "message": "このメールでクリッパーを有効にできません。",
     "description": "Error code INJECTION_FAILED"
   },
   "errorNoEmailDisplayed": {
-    "message": "Abra un correo electrónico para usar esta extensión.",
+    "message": "この拡張機能を使用するにはメールを開いてください。",
     "description": "Error code NO_EMAIL_DISPLAYED"
   },
   "errorEmptyEmailBody": {
-    "message": "Este correo electrónico no contiene contenido importable.",
+    "message": "このメールにはインポート可能なコンテンツが含まれていません。",
     "description": "Error code EMPTY_EMAIL_BODY"
   },
   "errorAttachmentTooLarge": {
-    "message": "Este archivo supera el límite de 200 MB.",
+    "message": "このファイルは 200 MB の制限を超えています。",
     "description": "Error code ATTACHMENT_TOO_LARGE"
   },
   "errorUnknown": {
-    "message": "Ocurrió un error. Consulte la consola para más detalles.",
+    "message": "エラーが発生しました。詳細はコンソールを確認してください。",
     "description": "Error code UNKNOWN"
   },
   "btnReconnect": {
-    "message": "Reconectar",
+    "message": "再接続",
     "description": "Button shown after AUTH_EXPIRED to re-open the auth tab"
   },
   "warningPartialImport": {
-    "message": "No se pudieron importar $COUNT$ archivo(s) adjunto(s).",
+    "message": "$COUNT$ 個の添付ファイルがインポートできませんでした。",
     "description": "Warning shown in SUCCESS state when some attachments failed",
     "placeholders": {
       "COUNT": { "content": "$1", "example": "1" }

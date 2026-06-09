@@ -1,357 +1,191 @@
 {
   "extensionName": {
     "message": "Magic Clipper for NotebookLM",
-    "description": "Extension name displayed in Firefox about:addons"
+    "description": "Extension name displayed in Thunderbird Add-on Manager"
   },
   "extensionDescription": {
-    "message": "Chụp, dọn dẹp và nhập ngay lập tức bất kỳ trang web nào vào Google NotebookLM với độ chính xác kỳ diệu.",
-    "description": "Extension description displayed in Firefox about:addons"
+    "message": "Nhập email, tệp đính kèm và liên kết trực tiếp vào Google NotebookLM chỉ với một cú nhấp chuột.",
+    "description": "Extension description displayed in Thunderbird Add-on Manager"
   },
-  "popupTitleCapture": {
-    "message": "Chụp trang này",
-    "description": "Main popup heading"
+  "actionTitle": {
+    "message": "Lưu vào NotebookLM",
+    "description": "Tooltip on the message_display_action button"
   },
-  "popupLabelSelectNotebook": {
-    "message": "Chọn một sổ tay",
-    "description": "Label for notebook selection"
+  "stateAuthRequired": {
+    "message": "Đăng nhập vào NotebookLM",
+    "description": "Heading shown when authentication is needed"
   },
-  "popupPlaceholderSearchNotebook": {
-    "message": "Tìm kiếm sổ tay...",
-    "description": "Placeholder for Fast Research input"
+  "stateAuthRequiredBody": {
+    "message": "Kết nối tài khoản Google của bạn để bắt đầu nhập email vào NotebookLM.",
+    "description": "Explanation text in the auth-required state"
   },
-  "popupLabelLocale": {
-    "message": "Ngôn ngữ",
-    "description": "Label for the language selector"
+  "btnConnect": {
+    "message": "Kết nối với NotebookLM",
+    "description": "Button to open the NotebookLM auth tab"
+  },
+  "stateLoading": {
+    "message": "Đang tải…",
+    "description": "Generic loading message"
+  },
+  "labelSubject": {
+    "message": "Tiêu đề",
+    "description": "Label for the email subject metadata row"
+  },
+  "labelFrom": {
+    "message": "Người gửi",
+    "description": "Label for the email sender metadata row"
+  },
+  "labelDate": {
+    "message": "Ngày",
+    "description": "Label for the email date metadata row"
+  },
+  "labelNotebook": {
+    "message": "Sổ ghi chép",
+    "description": "Label above the notebook selector"
+  },
+  "placeholderSearch": {
+    "message": "Tìm kiếm sổ ghi chép…",
+    "description": "Placeholder text for the Fast Research notebook search input"
+  },
+  "btnCreateNotebook": {
+    "message": "+ Sổ ghi chép mới",
+    "description": "Button to create a new notebook"
+  },
+  "loadingNotebooks": {
+    "message": "Đang tải sổ ghi chép…",
+    "description": "Shown while notebooks are being fetched"
+  },
+  "noNotebookFound": {
+    "message": "Không tìm thấy sổ ghi chép nào.",
+    "description": "Shown when notebook list is empty or search has no results"
+  },
+  "errNoNotebook": {
+    "message": "Vui lòng chọn một sổ ghi chép trước.",
+    "description": "Error when user tries to import without selecting a notebook"
   },
   "btnPdf": {
-    "message": "PDF",
-    "description": "Button label — export as PDF"
+    "message": "📄 PDF",
+    "description": "Button to import email as PDF"
   },
-  "btnPdfAriaLabel": {
-    "message": "Xuất trang dưới dạng PDF và nhập vào NotebookLM",
-    "description": "Accessible label for the PDF button"
-  },
-  "btnMarkdown": {
-    "message": "Markdown",
-    "description": "Button label — export as Markdown"
-  },
-  "btnMarkdownAriaLabel": {
-    "message": "Xuất trang dưới dạng Markdown và nhập vào NotebookLM",
-    "description": "Accessible label for the Markdown button"
+  "btnMd": {
+    "message": "📝 Markdown",
+    "description": "Button to import email as Markdown text"
   },
   "btnUrl": {
-    "message": "URL",
-    "description": "Button label — send URL"
-  },
-  "btnUrlAriaLabel": {
-    "message": "Gửi URL trực tiếp đến NotebookLM",
-    "description": "Accessible label for the URL button"
-  },
-  "btnScreenshot": {
-    "message": "Ảnh chụp màn hình",
-    "description": "Button label — capture screenshot"
-  },
-  "btnScreenshotAriaLabel": {
-    "message": "Chụp ảnh màn hình và nhập vào NotebookLM",
-    "description": "Accessible label for the Screenshot button"
-  },
-  "btnDirect": {
-    "message": "Nhập trực tiếp",
-    "description": "Button label — direct import"
-  },
-  "btnDirectAriaLabel": {
-    "message": "Nhập trực tiếp tệp vào NotebookLM",
-    "description": "Accessible label for the Direct Import button"
-  },
-  "btnDrive": {
-    "message": "Google Drive",
-    "description": "Button label — Google Drive"
-  },
-  "btnDriveAriaLabel": {
-    "message": "Nhập từ Google Drive",
-    "description": "Accessible label for the Google Drive button"
+    "message": "🔗 URL",
+    "description": "Button to import a URL detected in the email"
   },
   "intentNoteLabelVisible": {
-    "message": "Mục đích tìm kiếm (tùy chọn)",
-    "description": "Label for the intent note field"
+    "message": "Ý định nghiên cứu (tùy chọn)",
+    "description": "Label for the intent note textarea"
   },
   "intentNotePlaceholder": {
-    "message": "Tùy chọn: mô tả mục đích tìm kiếm của bạn...",
+    "message": "Mô tả mục tiêu nghiên cứu của bạn…",
     "description": "Placeholder text for the intent note textarea"
   },
+  "labelAttachments": {
+    "message": "Tệp đính kèm",
+    "description": "Label above the attachment checkboxes list"
+  },
+  "btnImportSelection": {
+    "message": "Nhập lựa chọn ($COUNT$)",
+    "description": "Button to import selected attachments",
+    "placeholders": {
+      "COUNT": {
+        "content": "$1",
+        "example": "3"
+      }
+    }
+  },
+  "labelAccount": {
+    "message": "Tài khoản Google",
+    "description": "Label above the account switcher dropdown"
+  },
   "statusCapturing": {
-    "message": "Đang chụp…",
-    "description": "Status message when capturing begins"
+    "message": "Đang tạo…",
+    "description": "Shown while the PDF or Markdown is being generated"
   },
   "statusUploading": {
-    "message": "Đang tải lên… ($PERCENT$%)",
-    "description": "Upload progress message with substitution",
+    "message": "Đang tải lên…",
+    "description": "Shown while the file is being uploaded to NotebookLM"
+  },
+  "statusBatchProgress": {
+    "message": "Đang nhập tệp đính kèm $CURRENT$ trên $TOTAL$…",
+    "description": "Progress message during grouped attachment import",
     "placeholders": {
-      "PERCENT": {
-        "content": "$1",
-        "example": "42"
-      }
+      "CURRENT": { "content": "$1", "example": "2" },
+      "TOTAL":   { "content": "$2", "example": "4" }
     }
   },
   "statusSuccess": {
     "message": "Nhập thành công ✓",
-    "description": "Status message on success"
-  },
-  "statusProcessing": {
-    "message": "Đang xử lý…",
-    "description": "Status message during processing"
-  },
-  "errorApiChanged": {
-    "message": "API NotebookLM đã bị thay đổi. Cần phải cập nhật.",
-    "description": "User-facing error when API structure is modified"
-  },
-  "errorAuthExpired": {
-    "message": "Phiên đã hết hạn. Vui lòng đăng nhập lại vào NotebookLM.",
-    "description": "User-facing error on 401/403"
-  },
-  "errorUploadSessionMissing": {
-    "message": "Lỗi trong quá trình khởi tạo tải lên.",
-    "description": "User-facing error when upload URL is missing"
-  },
-  "errorTimeout": {
-    "message": "Yêu cầu đã hết thời gian chờ. Vui lòng kiểm tra kết nối của bạn.",
-    "description": "User-facing error for timeouts"
-  },
-  "errorInjectionFailed": {
-    "message": "Không thể kích hoạt clipper trên trang bị hạn chế này.",
-    "description": "User-facing error when script injection fails"
-  },
-  "errorUnknown": {
-    "message": "Đã xảy ra lỗi không xác định. Vui lòng kiểm tra bảng điều khiển.",
-    "description": "User-facing error for uncategorized errors"
-  },
-  "menuContextImportSelection": {
-    "message": "Nhập phần đã chọn vào NotebookLM",
-    "description": "Context menu item to import selected text"
-  },
-  "popupLabelFormat": {
-    "message": "Định dạng"
-  },
-  "popupStatusReady": {
-    "message": "Sẵn sàng"
-  },
-  "btnClose": {
-    "message": "✖ Đóng"
-  },
-  "linkOpenNotebook": {
-    "message": "Mở sổ tay →"
-  },
-  "linkDownloadFile": {
-    "message": "Tải {ext} ↓"
-  },
-  "linkDownloading": {
-    "message": "Đang tải..."
-  },
-  "linkDownloaded": {
-    "message": "✅ Đã tải"
-  },
-  "statusConnected": {
-    "message": "Đã kết nối ({type})"
-  },
-  "statusDisconnected": {
-    "message": "Đã ngắt kết nối"
-  },
-  "errAuth": {
-    "message": "Lỗi xác thực."
-  },
-  "loadingNotebooks": {
-    "message": "Đang tải sổ tay..."
-  },
-  "errLoadNotebooks": {
-    "message": "Lỗi khi tải sổ tay."
-  },
-  "noNotebookFound": {
-    "message": "Không tìm thấy sổ tay nào."
-  },
-  "notebookNotFound": {
-    "message": "Không tìm thấy sổ tay."
-  },
-  "errNoSearchTerm": {
-    "message": "Nhập tên sổ tay vào ô tìm kiếm."
-  },
-  "creatingNotebook": {
-    "message": "Đang tạo sổ tay \"{title}\"..."
-  },
-  "notebookCreated": {
-    "message": "Sổ tay \"{title}\" đã được tạo ✅"
-  },
-  "errCreateNotebook": {
-    "message": "Không thể tạo sổ tay. Vui lòng kiểm tra kết nối và thử lại.",
-    "description": "Lỗi khi tạo sổ tay"
-  },
-  "errGeneric": {
-    "message": "Lỗi: {msg}"
-  },
-  "errNoNotebook": {
-    "message": "Vui lòng chọn một sổ tay trước."
-  },
-  "importingSelection": {
-    "message": "📋 Đang nhập lựa chọn..."
-  },
-  "importingFormat": {
-    "message": "Đang nhập dưới dạng {label}..."
-  },
-  "warnLocalFile": {
-    "message": "⚠️ Tệp cục bộ — nhập trực tiếp không khả dụng."
-  },
-  "errDownload": {
-    "message": "❌ Lỗi"
-  },
-  "errGenericOccurred": {
-    "message": "Đã xảy ra lỗi."
-  },
-  "apiChanged": {
-    "message": "API NotebookLM đã được Google cập nhật. Cần cập nhật tiện ích mở rộng."
-  },
-  "sessionExpired": {
-    "message": "Phiên đã hết hạn. Vui lòng đăng nhập lại tại notebooklm.google.com."
-  },
-  "uploadSessionFailed": {
-    "message": "Tải lên thất bại: không thể bắt đầu phiên tải lên."
-  },
-  "timeout": {
-    "message": "Hết thời gian chờ. Kiểm tra kết nối và thử lại."
-  },
-  "unexpectedError": {
-    "message": "Đã xảy ra lỗi không mong đợi. Kiểm tra bảng điều khiển để biết chi tiết."
-  },
-  "errFileReader": {
-    "message": "Đọc tệp thất bại."
-  },
-  "errNoCapture": {
-    "message": "Không có ảnh chụp nào."
-  },
-  "statusCreatingNb": {
-    "message": "Đang tạo sổ tay..."
-  },
-  "statusUploadSelection": {
-    "message": "📋 Đang tải lên lựa chọn..."
-  },
-  "statusImportedSelection": {
-    "message": "✅ Đã nhập lựa chọn!"
-  },
-  "notifSelectionTitle": {
-    "message": "📎 Clip lựa chọn vào NotebookLM"
-  },
-  "notifSelectionCaptured": {
-    "message": "Đã chụp lựa chọn ✓"
-  },
-  "notifSelectionMsg": {
-    "message": "Nhấp vào nút NotebookLM Web Clipper để chọn sổ tay."
-  },
-  "notifSuccessMsg": {
-    "message": "Đã thêm \"{title}\" dưới dạng {format} thành công!"
-  },
-  "statusFetchSession": {
-    "message": "Đang lấy phiên cá nhân..."
-  },
-  "statusScreenshot": {
-    "message": "📸 Đang chụp viewport..."
-  },
-  "statusUploadScreenshot": {
-    "message": "📸 Đang tải lên ảnh chụp màn hình..."
-  },
-  "statusImportedScreenshot": {
-    "message": "✅ Đã nhập ảnh chụp màn hình!"
-  },
-  "statusDownloadFile": {
-    "message": "⚡ Đang tải xuống tệp..."
-  },
-  "statusUploadFile": {
-    "message": "⚡ Đang tải lên {ext}..."
-  },
-  "statusImportedFile": {
-    "message": "✅ Đã nhập tệp trực tiếp!"
-  },
-  "statusDrive": {
-    "message": "☁️ Đang kết nối với Google Drive..."
-  },
-  "statusImportedDrive": {
-    "message": "✅ Đã đồng bộ tài liệu Google Drive!"
-  },
-  "statusYoutube": {
-    "message": "Phát hiện YouTube → nhập gốc..."
-  },
-  "statusSendUrl": {
-    "message": "Đang gửi URL đến NotebookLM..."
-  },
-  "statusImportedYoutube": {
-    "message": "✅ Đã nhập video YouTube!"
-  },
-  "statusImportedUrl": {
-    "message": "✅ Đã nhập URL!"
-  },
-  "statusDomCapture": {
-    "message": "Đang yêu cầu chụp DOM..."
-  },
-  "statusSendMarkdown": {
-    "message": "Đang gửi Markdown (nguồn văn bản)..."
-  },
-  "statusImportedMarkdown": {
-    "message": "✅ Đã nhập Markdown!"
-  },
-  "statusCheckQuota": {
-    "message": "Đang kiểm tra hạn mức bảo mật..."
-  },
-  "statusSendPdf": {
-    "message": "Đang gửi PDF (Máy chủ Google)..."
-  },
-  "statusImportedPdf": {
-    "message": "✅ Đã nhập PDF!"
-  },
-  "errGetNotebooks": {
-    "message": "Không thể lấy danh sách sổ tay. Vui lòng kiểm tra kết nối và tải lại.",
-    "description": "Lỗi khi lấy danh sách sổ tay"
-  },
-  "errSelectionFailed": {
-    "message": "Không thể nhập phần đã chọn. Vui lòng thử lại.",
-    "description": "Lỗi khi nhập nội dung đã chọn"
-  },
-  "errWorkflowFailed": {
-    "message": "Đã xảy ra lỗi trong quá trình nhập. Vui lòng kiểm tra bảng điều khiển.",
-    "description": "Lỗi quy trình nhập tổng quát"
-  },
-  "errInjectionFailed": {
-    "message": "Không thể kích hoạt clipper trên trang này (trang hệ thống hoặc bị hạn chế).",
-    "description": "Lỗi khi tiêm script trên trang bị hạn chế"
-  },
-  "popupTitleAccountSwitcher": {
-    "message": "Chuyển đổi tài khoản Google"
-  },
-  "statusConnecting": {
-    "message": "Đang kết nối..."
-  },
-  "btnCreateNotebookTitle": {
-    "message": "Tạo sổ tay mới"
-  },
-  "btnPdfTitle": {
-    "message": "Hình ảnh nhúng, bố cục trực quan"
-  },
-  "btnMarkdownTitle": {
-    "message": "Bảng hoàn hảo, siêu nhẹ, nguyên bản cho Gemini"
-  },
-  "btnUrlTitle": {
-    "message": "Nhập ngay lập tức — NotebookLM trích xuất trang"
-  },
-  "btnScreenshotTitle": {
-    "message": "Chụp vùng nhìn thấy được dưới dạng PNG"
-  },
-  "btnDriveTitle": {
-    "message": "Đồng bộ hóa Google Drive gốc"
-  },
-  "btnDirectTitle": {
-    "message": "Nhập tệp gốc nguyên bản"
-  },
-  "btnClearSelectionTitle": {
-    "message": "Hủy"
+    "description": "Shown on successful import"
   },
   "btnOpenNotebook": {
     "message": "Mở →",
     "description": "Button to open the notebook after a successful import"
+  },
+  "btnDownload": {
+    "message": "Tải xuống ↓",
+    "description": "Button to download the generated PDF or MD file locally"
+  },
+  "btnBack": {
+    "message": "← Quay lại",
+    "description": "Button to return to the READY state after an error"
+  },
+  "btnNewImport": {
+    "message": "Nhập mới",
+    "description": "Button to start a new import after success"
+  },
+  "btnImportUrl": {
+    "message": "Nhập URL này",
+    "description": "Button to confirm URL selection in the URL selector state"
+  },
+  "errorApiChanged": {
+    "message": "API NotebookLM đã thay đổi. Yêu cầu cập nhật phiên bản mới.",
+    "description": "Error code API_CHANGED"
+  },
+  "errorAuthExpired": {
+    "message": "Phiên làm việc hết hạn. Vui lòng đăng nhập lại vào NotebookLM.",
+    "description": "Error code AUTH_EXPIRED"
+  },
+  "errorUploadSessionMissing": {
+    "message": "Lỗi khởi tạo quá trình tải lên. Vui lòng thử lại.",
+    "description": "Error code UPLOAD_SESSION_MISSING"
+  },
+  "errorTimeout": {
+    "message": "Yêu cầu quá thời hạn. Vui lòng kiểm tra lại kết nối mạng.",
+    "description": "Error code TIMEOUT"
+  },
+  "errorInjectionFailed": {
+    "message": "Không thể kích hoạt clipper trên email này.",
+    "description": "Error code INJECTION_FAILED"
+  },
+  "errorNoEmailDisplayed": {
+    "message": "Vui lòng mở một email để sử dụng tiện ích này.",
+    "description": "Error code NO_EMAIL_DISPLAYED"
+  },
+  "errorEmptyEmailBody": {
+    "message": "Email này không có nội dung khả dụng để nhập.",
+    "description": "Error code EMPTY_EMAIL_BODY"
+  },
+  "errorAttachmentTooLarge": {
+    "message": "Tệp đính kèm này vượt quá giới hạn 200 MB.",
+    "description": "Error code ATTACHMENT_TOO_LARGE"
+  },
+  "errorUnknown": {
+    "message": "Đã xảy ra lỗi. Vui lòng kiểm tra console để biết thêm chi tiết.",
+    "description": "Error code UNKNOWN"
+  },
+  "btnReconnect": {
+    "message": "Kết nối lại",
+    "description": "Button shown after AUTH_EXPIRED to re-open the auth tab"
+  },
+  "warningPartialImport": {
+    "message": "Không thể nhập $COUNT$ tệp đính kèm.",
+    "description": "Warning shown in SUCCESS state when some attachments failed",
+    "placeholders": {
+      "COUNT": { "content": "$1", "example": "1" }
+    }
   }
 }

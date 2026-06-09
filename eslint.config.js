@@ -22,6 +22,13 @@ export default [
       "no-console": ["warn", { allow: ["warn", "error"] }],
       "no-unused-vars": ["warn", { "varsIgnorePattern": "^_", "argsIgnorePattern": "^_", "caughtErrorsIgnorePattern": "^_" }],
       "no-undef": "error",
+      "no-restricted-properties": [
+        "error",
+        {
+          "property": "innerHTML",
+          "message": "Please do not use innerHTML to avoid XSS vulnerabilities and ATN warnings. Use textContent or createElement/appendChild instead."
+        }
+      ]
     }
   }
 ];
