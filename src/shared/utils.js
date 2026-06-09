@@ -7,6 +7,34 @@
 // eslint-disable-next-line no-unused-vars
 var NtcUtils = (function () {
   /**
+   * Mode debug — DOIT rester à false en release.
+   * Gate tous les logs informatifs (log()) et les entrées diagnostic
+   * (carnets __diag__). Voir AGENTS.md §4.4.
+   */
+  const DEBUG = false;
+
+  /**
+   * Log informatif gaté par DEBUG. Ne JAMAIS y passer de payload sensible
+   * (cookies, tokens, réponses RPC brutes, contenu email) — même en DEBUG,
+   * préférer des longueurs/booléens aux contenus.
+   *
+   * @param {...*} args - Arguments transmis à console.warn si DEBUG actif.
+   */
+  function log(...args) {
+    if (DEBUG) console.warn('[NTC]', ...args);
+  }
+
+  /**
+   * Clés browser.storage.local — source unique partagée par background.js
+   * ET popup.js. Ne jamais utiliser ces littéraux directement ailleurs.
+   */
+  const STORAGE_KEYS = {
+    AUTH_READY: 'ntc_auth_ready',
+    ACTIVE_AUTHUSER: 'ntc_active_authuser',
+    LAST_NOTEBOOK: 'ntc_last_notebook_id',
+  };
+
+  /**
    * Résout une clé i18n en chaîne traduite via browser.i18n.getMessage().
    * NE JAMAIS appeler browser.i18n.getMessage() directement dans popup.js.
    *
@@ -342,6 +370,9 @@ var NtcUtils = (function () {
   }
 
   return {
+    DEBUG,
+    log,
+    STORAGE_KEYS,
     t,
     blobToBase64,
     buildNotebookUrl,

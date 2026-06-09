@@ -1,6 +1,8 @@
 # 📎 Magic Clipper for NotebookLM
 
-**Magic Clipper for NotebookLM** est une MailExtension Thunderbird (Manifest V2) qui permet d'importer le contenu d'un email (corps, pièces jointes, URLs) directement dans un carnet **Google NotebookLM** en un seul clic depuis le panneau de lecture.
+![version](https://img.shields.io/badge/version-1.0.4-blue) ![platform](https://img.shields.io/badge/Thunderbird-115%2B-0a84ff)
+
+**Magic Clipper for NotebookLM** est une MailExtension Thunderbird (Manifest V2) qui permet d'importer le contenu d'un email (corps, pièces jointes) directement dans un carnet **Google NotebookLM** en un seul clic depuis le panneau de lecture.
 
 Optimisé pour l'analyse par Gemini, il intègre un grounding IA complet et prend en compte les contextes de sécurité spécifiques au panneau de lecture de Thunderbird.
 
@@ -10,15 +12,14 @@ Optimisé pour l'analyse par Gemini, il intègre un grounding IA complet et pren
 
 | Fonctionnalité | Description |
 | --- | --- |
-| **4 modes d'import** | 📄 PDF, 📝 Markdown, 🔗 URL détectées, ⚡ Import Direct de pièces jointes |
+| **3 modes d'import** | 📄 PDF, 📝 Markdown, ⚡ Import Direct de pièces jointes |
 | **📄 Email → PDF** | Rendu PDF haute fidélité du DOM de l'email via jsPDF avec grounding IA complet en en-tête. |
 | **📝 Email → Markdown** | Extraction et conversion propre du HTML en Markdown structuré (support complet des listes imbriquées, blockquotes, code blocks, et tableaux). |
-| **🔗 URL** | NotebookLM scrape le lien lui-même — idéal pour les newsletters contenant des liens vers des articles publics. |
 | **⚡ Import Direct (PJ)** | Détecte et importe individuellement ou par lot les pièces jointes (PDF, images, audio, vidéo, documents) via le protocole Google Scotty. |
 | **Filtrage des médias** | Les images base64 ou volumineuses en pièces jointes sont gérées de façon à éviter tout blocage de quota de l'API. |
 | **Fast Research** | Filtrage dynamique en temps réel avec debounce (300ms) pour trouver instantanément votre carnet cible. |
 | **Multi-comptes** | Menu déroulant intégré pour basculer facilement entre vos différents profils et comptes Google. |
-| **Internationalisation** | Support complet en 5 langues (EN, FR, DE, ES, VI) avec basculement automatique selon la locale de Thunderbird. |
+| **Internationalisation** | Support complet en 7 langues (EN, FR, DE, ES, VI, JA, PT) avec basculement automatique selon la locale de Thunderbird. |
 
 ---
 
@@ -31,7 +32,7 @@ Optimisé pour l'analyse par Gemini, il intègre un grounding IA complet et pren
 │  Fast Research            │◀─────│       Auth Gecko & CSRF     │◀─────│      /upload/_/ (Scotty)    │
 └───────────────────────────┘      └──────────────┬──────────────┘      └─────────────────────────────┘
                                                   │
-                                                  │ (scripting.executeScript)
+                                                  │ (messageDisplayScripts)  
                                            ┌──────▼──────────────────────┐
                                            │    Content Bridge Script    │
                                            │    email_bridge.js          │
@@ -41,7 +42,7 @@ Optimisé pour l'analyse par Gemini, il intègre un grounding IA complet et pren
 
 * **CORS et Réseau** : Toutes les requêtes réseau vers Google passent par le script d'arrière-plan (`background.js`), exempté des règles de CORS appliquées à l'affichage des emails.
 * **Extraction MIME récursive** : L'extension parcourt récursivement l'arbre MIME des emails pour restituer le contenu sous son meilleur format structurel (HTML ou texte brut).
-* **Lazy Loading PDF** : La bibliothèque `jspdf.umd.min.js` et le script de génération `email_pdf_generator.js` ne sont injectés dans l'iframe d'affichage de l'email qu'au moment où l'utilisateur clique sur le bouton de capture PDF.
+* **Scripts PDF pré-enregistrés** : La bibliothèque `jspdf.umd.min.js` et le script de génération `email_pdf_generator.js` sont enregistrés comme messageDisplayScripts au démarrage du background — la capture PDF est ainsi disponible immédiatement, sans injection à la volée.
 
 ---
 
@@ -64,7 +65,7 @@ Avant d'utiliser l'extension pour la première fois, **votre compte Google** doi
 1. Ouvrez Thunderbird.
 2. Allez dans le menu ☰ ➡️ **Outils** ➡️ **Boîte à outils de développement** ➡️ **Déboguage des modules**.
 3. Cliquez sur **Ce Thunderbird** (ou bouton équivalent).
-4. Cliquez sur **Charger un module temporaire...** et sélectionnez le fichier [manifest.json](file:///Users/mtfkarukera/Scripts/mc4nblm-thunderbird/manifest.json) du projet.
+4. Cliquez sur **Charger un module temporaire...** et sélectionnez le fichier `manifest.json` à la racine du projet.
 
 ---
 
@@ -74,7 +75,7 @@ Avant d'utiliser l'extension pour la première fois, **votre compte Google** doi
    ```bash
    npx web-ext build --source-dir .
    ```
-2. Renommez l'archive produite en `.xpi` (ex: `notebooklm-clipper-tb-1.0.0.xpi`).
+2. Renommez l'archive produite en `.xpi` (ex: `notebooklm-clipper-tb-1.0.4.xpi`).
 3. Dans Thunderbird ➡️ **Gestionnaire de modules complémentaires** ➡️ cliquez sur l'icône engrenage ⚙️ ➡️ **Installer un module depuis un fichier...** ➡️ Sélectionnez votre fichier `.xpi`.
 
 ---
@@ -84,9 +85,9 @@ Avant d'utiliser l'extension pour la première fois, **votre compte Google** doi
 ```text
 notebooklm-clipper-thunderbird/
 ├── manifest.json                    # Manifest V2 MailExtension
-├── _locales/                        # Fichiers de traduction native (EN, FR, DE, ES, VI)
+├── _locales/                        # Fichiers de traduction native (EN, FR, DE, ES, VI, JA, PT)
 ├── lib/
-│   └── jspdf.umd.min.js            # jsPDF 2.5.2 standalone (injecté à la demande)
+│   └── jspdf.umd.min.js            # jsPDF 2.5.2 standalone (pré-enregistré)
 ├── src/
 │   ├── background/
 │   │   ├── background.js           # Routeur principal & pipelines d'import
@@ -109,6 +110,16 @@ notebooklm-clipper-thunderbird/
 ---
 
 ## 📋 Changelog
+
+### v1.0.4 — Code Review Release — Juin 2026
+* **Messages d'erreur fiables** : Les codes d'erreur du background sont désormais correctement reconnus par la popup (Gecko ne sérialise que `message` lors d'un rejet de `runtime.sendMessage`) — fini les "erreur inconnue" génériques pour une session expirée ou un email non sélectionné.
+* **Pièces jointes .mov acceptées** : Ajout du type MIME `video/quicktime` (et retrait du type inexistant `video/mov`).
+* **Pièces jointes transparentes** : Les PJ > 200 MB apparaissent grisées avec la mention de la limite (au lieu d'être masquées en silence) ; les fichiers sans extension reconnue sont proposés explicitement (décochés par défaut, import texte sur opt-in).
+* **Téléchargement local robuste** : Nom de fichier issu du sujet brut de l'email, assaini — fini les échecs de téléchargement pour cause de caractères invalides ou d'ellipse de troncature.
+* **Session plus sûre** : Détection immédiate d'un jeton CSRF absent (session expirée explicite), nettoyage des écouteurs si l'onglet de connexion est fermé manuellement, retrait d'un header `Cookie` interdit et inopérant.
+* **Date manquante** : Affichage d'un libellé localisé au lieu de "Invalid Date" (popup, PDF et Markdown).
+* **Allègement et sécurité** : Retrait des permissions inutilisées (`notifications`, `messagesModify`) et de `web_accessible_resources` ; logs de diagnostic désactivés en production (flag DEBUG) ; fuites mémoire des téléchargements corrigées (révocation des object URLs).
+* **Retrait du mode URL** : Le pipeline d'import d'URL (jamais exposé dans l'interface) est retiré du code — réintroduction propre envisagée dans une version future.
 
 ### v1.0.3 — Bug Fix & Asset Quality Release — Juin 2026
 * **Amélioration de la qualité des icônes** : Restructuration et rendu vectoriel de haute qualité pour les icônes `icon.png`, `icon@2x.png` et ajout de `icon-128.png` pour une netteté maximale dans le gestionnaire de modules de Thunderbird.

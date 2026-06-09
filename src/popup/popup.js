@@ -1,32 +1,14 @@
 // popup.js — Logique UI de la popup Thunderbird MV2
-// NotebookLM Clipper for Thunderbird — v1.0.0
+// NotebookLM Clipper for Thunderbird
 //
 // Dépend de utils.js chargé avant lui (expose var NtcUtils → t())
 // Utilise browser.runtime.sendMessage pour communiquer avec background.js
 
 'use strict';
 
-// Gestion des erreurs globales avec affichage visuel (failsafe)
-window.onerror = function (message, source, lineno, colno, error) {
-  const div = document.createElement('div');
-  div.style.position = 'fixed';
-  div.style.top = '0';
-  div.style.left = '0';
-  div.style.width = '100%';
-  div.style.height = '100%';
-  div.style.background = '#8b0000';
-  div.style.color = '#ffffff';
-  div.style.padding = '15px';
-  div.style.zIndex = '999999';
-  div.style.fontFamily = 'monospace';
-  div.style.fontSize = '11px';
-  div.style.lineHeight = '1.4';
-  div.style.overflow = 'auto';
-  div.style.boxSizing = 'border-box';
-  div.textContent = `CRASH GLOBAL:\nError: ${message}\nSource: ${source}\nLine: ${lineno}:${colno}\nStack: ${error ? error.stack : 'N/A'}`;
-  document.body.appendChild(div);
-  return false;
-};
+// Gestion des erreurs globales : assurée par pre_loader.js (écouteur 'error'
+// en phase capture + window.__ntcRenderErrorScreen). Le doublon window.onerror
+// a été supprimé en revue 2026-06-10.
 
 // ─────────────────────────────────────────────
 // ALIAS UTIL (avec fallback défensif)
@@ -46,10 +28,15 @@ const t = (typeof NtcUtils !== 'undefined' && NtcUtils && NtcUtils.t)
 
 let _currentNotebookId  = null;
 let _currentMessageId   = null;
-let _detectedUrls       = [];
-let _selectedUrl        = null;
 let _pingInterval       = null;
-let _currentFormat      = null;  // 'pdf' | 'md' | 'url' | 'attachment'
+let _currentFormat      = null;  // 'pdf' | 'md' | 'attachment'
+
+// Clés de storage : source unique dans NtcUtils (revue 2026-06-10)
+const STORAGE_KEYS = (typeof NtcUtils !== 'undefined' && NtcUtils.STORAGE_KEYS) || {
+  AUTH_READY: 'ntc_auth_ready',
+  ACTIVE_AUTHUSER: 'ntc_active_authuser',
+  LAST_NOTEBOOK: 'ntc_last_notebook_id',
+};
 
 // ─────────────────────────────────────────────
 // GESTION DES ÉTATS
@@ -58,14 +45,13 @@ let _currentFormat      = null;  // 'pdf' | 'md' | 'url' | 'attachment'
 /**
  * Affiche uniquement l'état demandé, masque tous les autres.
  *
- * @param {'authRequired'|'loading'|'ready'|'urlSelector'|'capturing'|'success'|'error'} name
+ * @param {'authRequired'|'loading'|'ready'|'capturing'|'success'|'error'} name
  */
 function showState(name) {
   const idMap = {
     authRequired : 'state-auth-required',
     loading      : 'state-loading',
     ready        : 'state-ready',
-    urlSelector  : 'state-url-selector',
     capturing    : 'state-capturing',
     success      : 'state-success',
     error        : 'state-error',
@@ -148,7 +134,8 @@ async function loadEmailMeta() {
   try {
     meta = await browser.runtime.sendMessage({ action: 'GET_ACTIVE_EMAIL_META' });
   } catch (e) {
-    showError(e.code || 'UNKNOWN', e.message);
+    const { code, detail } = classifyError(e);
+    showError(code, detail);
     return;
   }
 
@@ -163,21 +150,22 @@ async function loadEmailMeta() {
 
   const dateEl = document.getElementById('meta-date');
   if (dateEl) {
+    // meta.date est null si absente (revue 2026-06-10) — libellé i18n
     dateEl.textContent = meta.date
       ? new Date(meta.date).toLocaleString()
-      : '';
+      : t('labelDateUnknown');
   }
 
   _currentMessageId = meta.messageId;
-  _detectedUrls     = meta.detectedUrls || [];
-
-
 
   // Section PJ
   renderAttachments(meta.attachments || []);
 
-  // Charger les carnets
-  await loadNotebooks();
+  // Charger les carnets — loadNotebooks retourne false si elle a basculé
+  // l'UI vers un autre état (ex: authRequired sur AUTH_EXPIRED) :
+  // ne pas écraser cet état avec 'ready' (audit release 2026-06-10).
+  const notebooksOk = await loadNotebooks();
+  if (notebooksOk === false) return;
   showState('ready');
 }
 
@@ -207,7 +195,7 @@ function renderAttachments(attachments) {
 
   attachments.forEach(att => {
     const li       = document.createElement('li');
-    li.className   = 'attachment-item';
+    li.className   = 'attachment-item' + (att.tooLarge ? ' disabled' : '');
 
     const cb       = document.createElement('input');
     cb.type        = 'checkbox';
@@ -215,7 +203,13 @@ function renderAttachments(attachments) {
     cb.dataset.partName    = att.partName;
     cb.dataset.name        = att.name;
     cb.dataset.contentType = att.contentType;
-    cb.addEventListener('change', onAttachmentCheckboxChange);
+    // PJ > 200 MB : visible mais jamais importable (revue 2026-06-10)
+    if (att.tooLarge) {
+      cb.disabled = true;
+      li.title    = t('errorAttachmentTooLarge');
+    } else {
+      cb.addEventListener('change', onAttachmentCheckboxChange);
+    }
 
     const label    = document.createElement('label');
     label.htmlFor  = `att-${att.partName}`;
@@ -223,7 +217,7 @@ function renderAttachments(attachments) {
     label.textContent = att.name;
 
     const size     = document.createElement('span');
-    size.className = 'attachment-size';
+    size.className = 'attachment-size' + (att.tooLarge ? ' too-large' : '');
     if (att.size) {
       size.textContent = att.size > 1024 * 1024
         ? `${(att.size / 1024 / 1024).toFixed(1)} MB`
@@ -233,6 +227,16 @@ function renderAttachments(attachments) {
     li.appendChild(cb);
     li.appendChild(label);
     li.appendChild(size);
+
+    // PJ sans type reconnu : décochée par défaut, import texte sur opt-in
+    // explicite — badge informatif (revue 2026-06-10).
+    if (att.unknownType && !att.tooLarge) {
+      const flag = document.createElement('span');
+      flag.className   = 'attachment-flag';
+      flag.textContent = t('attachmentUnknownType');
+      li.appendChild(flag);
+    }
+
     list.appendChild(li);
   });
 }
@@ -274,20 +278,29 @@ async function loadNotebooks() {
   try {
     resp = await browser.runtime.sendMessage({ action: 'GET_NOTEBOOKS' });
   } catch (err) {
-    console.error('[NTC-UI] Échec du chargement des carnets :', err.message, err);
-    list.setAttribute('data-empty', t('noNotebookFound') + ' (' + err.message + ')');
-    return;
+    const { code } = classifyError(err);
+    // Session expirée → écran de reconnexion, pas un "aucun carnet trouvé"
+    // trompeur (revue 2026-06-10, amélioration 11). Retourne false pour
+    // que l'appelant n'écrase pas cet état avec 'ready'.
+    if (code === 'AUTH_EXPIRED') {
+      showState('authRequired');
+      return false;
+    }
+    console.error('[NTC-UI] Échec du chargement des carnets :', err.message);
+    list.setAttribute('data-empty', t(ERROR_KEYS[code] || 'errorUnknown'));
+    return true;
   }
 
   _notebooks = (resp && resp.notebooks) ? resp.notebooks : [];
 
   // Tenter de restaurer le dernier carnet sélectionné
-  const stored = await browser.storage.local.get('ntc_last_notebook_id');
-  if (stored.ntc_last_notebook_id) {
-    _currentNotebookId = stored.ntc_last_notebook_id;
+  const stored = await browser.storage.local.get(STORAGE_KEYS.LAST_NOTEBOOK);
+  if (stored[STORAGE_KEYS.LAST_NOTEBOOK]) {
+    _currentNotebookId = stored[STORAGE_KEYS.LAST_NOTEBOOK];
   }
 
   renderNotebooks(_notebooks);
+  return true;
 }
 
 /**
@@ -308,23 +321,33 @@ function renderNotebooks(notebooks) {
 
   filtered.forEach(nb => {
     const li = document.createElement('li');
-    li.className  = 'notebook-item' + (nb.id === _currentNotebookId ? ' selected' : '');
+    // Entrées diagnostic (mode DEBUG) : affichées mais jamais sélectionnables
+    // (revue 2026-06-10, bug 6 — défense en profondeur).
+    const isDiag = nb.id === '__diag__';
+    li.className  = 'notebook-item'
+      + (isDiag ? ' diag' : '')
+      + (!isDiag && nb.id === _currentNotebookId ? ' selected' : '');
     li.role       = 'option';
     li.dataset.id = nb.id;
     li.textContent = nb.title;
-    li.setAttribute('aria-selected', nb.id === _currentNotebookId ? 'true' : 'false');
-    li.addEventListener('click', () => selectNotebook(nb.id, nb.title, li));
+    li.setAttribute('aria-selected', !isDiag && nb.id === _currentNotebookId ? 'true' : 'false');
+    if (isDiag) {
+      li.setAttribute('aria-disabled', 'true');
+    } else {
+      li.addEventListener('click', () => selectNotebook(nb.id, nb.title, li));
+    }
     list.appendChild(li);
   });
 }
 
 function selectNotebook(id, _title, liEl) {
+  if (id === '__diag__') return;  // jamais sélectionnable (bug 6)
   _currentNotebookId = id;
   document.querySelectorAll('.notebook-item').forEach(el => {
     el.classList.toggle('selected', el === liEl);
     el.setAttribute('aria-selected', el === liEl ? 'true' : 'false');
   });
-  browser.storage.local.set({ ntc_last_notebook_id: id });
+  browser.storage.local.set({ [STORAGE_KEYS.LAST_NOTEBOOK]: id });
 }
 
 // ─────────────────────────────────────────────
@@ -343,6 +366,27 @@ const ERROR_KEYS = {
   ATTACHMENT_TOO_LARGE     : 'errorAttachmentTooLarge',
   UNKNOWN                  : 'errorUnknown',
 };
+
+/**
+ * Normalise une erreur reçue du background via runtime.sendMessage.
+ *
+ * ⚠️ Gecko ne sérialise QUE err.message lors d'un rejet de sendMessage —
+ * les propriétés custom (err.code) sont perdues. Le background encode donc
+ * le code d'erreur dans le message (ex: new Error('AUTH_EXPIRED')), et on
+ * mappe ici par message (revue 2026-06-10, bug 1).
+ *
+ * @param {Error} e - Erreur intercptée côté popup.
+ * @returns {{ code: string, detail: string|null }}
+ */
+function classifyError(e) {
+  if (e && e.code && ERROR_KEYS[e.code]) {
+    return { code: e.code, detail: e.detail || null };
+  }
+  if (e && e.message && ERROR_KEYS[e.message]) {
+    return { code: e.message, detail: null };
+  }
+  return { code: 'UNKNOWN', detail: e ? e.message : null };
+}
 
 /**
  * Affiche l'état erreur avec le bon message et les boutons adaptés.
@@ -381,8 +425,8 @@ function showSuccess(payload) {
   const btnOpen = document.getElementById('btn-open-notebook');
   if (btnOpen) {
     if (payload.notebookId) {
-      browser.storage.local.get('ntc_active_authuser').then(stored => {
-        const index = stored.ntc_active_authuser !== undefined ? stored.ntc_active_authuser : 0;
+      browser.storage.local.get(STORAGE_KEYS.ACTIVE_AUTHUSER).then(stored => {
+        const index = stored[STORAGE_KEYS.ACTIVE_AUTHUSER] !== undefined ? stored[STORAGE_KEYS.ACTIVE_AUTHUSER] : 0;
         btnOpen.href = NtcUtils.buildNotebookUrl(payload.notebookId, index);
       }).catch(() => {
         btnOpen.href = NtcUtils.buildNotebookUrl(payload.notebookId);
@@ -611,15 +655,15 @@ function bindButtons() {
     await loadNotebooks();
   });
 
-  // Télécharger
+  // Télécharger — le nom de fichier est géré côté background depuis le sujet
+  // brut mémorisé à la capture (revue 2026-06-10, bug 4 : plus de titre
+  // tronqué avec ellipse envoyé depuis la popup).
   safeBindClick('btn-download', () => {
     const btn = document.getElementById('btn-download');
     if (btn) {
-      const subjectEl = document.getElementById('meta-subject');
       browser.runtime.sendMessage({
         action  : 'DOWNLOAD_CAPTURE',
         fileType: btn.dataset.fileType || _currentFormat,
-        title   : (subjectEl ? subjectEl.textContent : '') || 'email',
       });
     }
   });
@@ -656,23 +700,10 @@ async function initPopup() {
     bindButtons();
   } catch (err) {
     console.error('[NTC] Erreur init UI :', err.message, err.stack);
-    const div = document.createElement('div');
-    div.style.position = 'fixed';
-    div.style.top = '0';
-    div.style.left = '0';
-    div.style.width = '100%';
-    div.style.height = '100%';
-    div.style.background = '#8b0000';
-    div.style.color = '#ffffff';
-    div.style.padding = '15px';
-    div.style.zIndex = '999999';
-    div.style.fontFamily = 'monospace';
-    div.style.fontSize = '11px';
-    div.style.lineHeight = '1.4';
-    div.style.overflow = 'auto';
-    div.style.boxSizing = 'border-box';
-    div.textContent = `CRASH INIT:\nError: ${err.message}\nStack: ${err.stack}`;
-    document.body.appendChild(div);
+    // Écran d'erreur factorisé dans pre_loader.js (revue 2026-06-10)
+    if (typeof window.__ntcRenderErrorScreen === 'function') {
+      window.__ntcRenderErrorScreen('CRASH INIT', `Error: ${err.message}\nStack: ${err.stack}`, false);
+    }
     return;
   }
 
@@ -716,8 +747,8 @@ async function initPopup() {
           sel.appendChild(opt);
         });
         // Charger le compte actif stocké et le sélectionner dans l'UI
-        const stored = await browser.storage.local.get('ntc_active_authuser');
-        const activeIndex = stored.ntc_active_authuser !== undefined ? stored.ntc_active_authuser : 0;
+        const stored = await browser.storage.local.get(STORAGE_KEYS.ACTIVE_AUTHUSER);
+        const activeIndex = stored[STORAGE_KEYS.ACTIVE_AUTHUSER] !== undefined ? stored[STORAGE_KEYS.ACTIVE_AUTHUSER] : 0;
         sel.value = String(activeIndex);
 
         const section = document.getElementById('account-section');

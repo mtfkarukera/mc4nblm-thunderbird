@@ -11,7 +11,6 @@
     "message": "Clip to NotebookLM",
     "description": "Tooltip on the message_display_action button"
   },
-
   "stateAuthRequired": {
     "message": "Sign in to NotebookLM",
     "description": "Heading shown when authentication is needed"
@@ -28,7 +27,6 @@
     "message": "Loading…",
     "description": "Generic loading message"
   },
-
   "labelSubject": {
     "message": "Subject",
     "description": "Label for the email subject metadata row"
@@ -41,7 +39,6 @@
     "message": "Date",
     "description": "Label for the email date metadata row"
   },
-
   "labelNotebook": {
     "message": "Notebook",
     "description": "Label above the notebook selector"
@@ -66,7 +63,6 @@
     "message": "Please select a notebook first.",
     "description": "Error when user tries to import without selecting a notebook"
   },
-
   "btnPdf": {
     "message": "📄 PDF",
     "description": "Button to import email as PDF"
@@ -75,11 +71,6 @@
     "message": "📝 Markdown",
     "description": "Button to import email as Markdown text"
   },
-  "btnUrl": {
-    "message": "🔗 URL",
-    "description": "Button to import a URL detected in the email"
-  },
-
   "intentNoteLabelVisible": {
     "message": "Research intention (optional)",
     "description": "Label for the intent note textarea (visible for PDF/MD, hidden for attachments)"
@@ -88,7 +79,6 @@
     "message": "Describe your research goal…",
     "description": "Placeholder text for the intent note textarea"
   },
-
   "labelAttachments": {
     "message": "Attachments",
     "description": "Label above the attachment checkboxes list"
@@ -103,12 +93,10 @@
       }
     }
   },
-
   "labelAccount": {
     "message": "Google account",
     "description": "Label above the account switcher dropdown"
   },
-
   "statusCapturing": {
     "message": "Generating…",
     "description": "Shown while the PDF or Markdown is being generated"
@@ -121,15 +109,20 @@
     "message": "Importing attachment $CURRENT$ of $TOTAL$…",
     "description": "Progress message during grouped attachment import",
     "placeholders": {
-      "CURRENT": { "content": "$1", "example": "2" },
-      "TOTAL":   { "content": "$2", "example": "4" }
+      "CURRENT": {
+        "content": "$1",
+        "example": "2"
+      },
+      "TOTAL": {
+        "content": "$2",
+        "example": "4"
+      }
     }
   },
   "statusSuccess": {
     "message": "Imported successfully ✓",
     "description": "Shown on successful import"
   },
-
   "btnOpenNotebook": {
     "message": "Open →",
     "description": "Button to open the notebook after a successful import"
@@ -146,11 +139,6 @@
     "message": "New import",
     "description": "Button to start a new import after success"
   },
-  "btnImportUrl": {
-    "message": "Import this URL",
-    "description": "Button to confirm URL selection in the URL selector state"
-  },
-
   "errorApiChanged": {
     "message": "The NotebookLM API has been modified. An update is required.",
     "description": "Error code API_CHANGED"
@@ -195,7 +183,18 @@
     "message": "$COUNT$ attachment(s) could not be imported.",
     "description": "Warning shown in SUCCESS state when some attachments failed",
     "placeholders": {
-      "COUNT": { "content": "$1", "example": "1" }
+      "COUNT": {
+        "content": "$1",
+        "example": "1"
+      }
     }
+  },
+  "attachmentUnknownType": {
+    "message": "Unknown type — will be imported as text",
+    "description": "Badge shown next to an attachment with no recognized type — imported as plain text only if explicitly checked (code review 2026-06-10)"
+  },
+  "labelDateUnknown": {
+    "message": "(unknown date)",
+    "description": "Label displayed when the email has no parsable date (code review 2026-06-10)"
   }
 }

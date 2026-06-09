@@ -1,5 +1,5 @@
 // email_bridge.js — MessageDisplayScript (point d'entrée email)
-// NotebookLM Clipper for Thunderbird — v1.0.0
+// NotebookLM Clipper for Thunderbird
 //
 // Enregistré au démarrage via messenger.messageDisplayScripts.register().
 // Écoute les messages du background et relaie les requêtes PDF.

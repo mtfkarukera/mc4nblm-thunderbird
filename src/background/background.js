@@ -1,10 +1,10 @@
 // background.js — Routeur central (Thunderbird MV2 — Background persistant)
-// NotebookLM Clipper for Thunderbird — v1.0.0
+// NotebookLM Clipper for Thunderbird
 //
 // Responsabilités :
 //   - Enregistrement du MessageDisplayScript email_bridge.js au démarrage
 //   - Routage des messages popup ↔ background (handler switch)
-//   - Orchestration des 4 pipelines d'import (PDF, MD, URL, Attachment)
+//   - Orchestration des 3 pipelines d'import (PDF, MD, Attachment)
 //   - Maintien de l'état en mémoire (session, tokens, compte actif)
 //
 // Dépendances chargées AVANT ce script dans background.scripts :
@@ -22,14 +22,12 @@ let _csrfToken = null;  // SNlM0e — refetché avant chaque capture
 let _sessionId = null;  // FdrFJe
 let _lastCapturePdfB64 = null;  // Dernier PDF généré (pour téléchargement local)
 let _lastCaptureMdText = null;  // Dernier MD généré (pour téléchargement local)
+let _lastCaptureTitle = null;   // Sujet brut du dernier email capturé (nom de téléchargement)
 let _pendingPdfResolve = null;  // Résolution Promise en attente de PDF_READY
 let _pendingPdfReject = null;   // Rejet Promise en attente de CAPTURE_ERROR
 
-const STORAGE_KEYS = {
-  AUTH_READY: 'ntc_auth_ready',
-  ACTIVE_AUTHUSER: 'ntc_active_authuser',
-  LAST_NOTEBOOK: 'ntc_last_notebook_id',
-};
+// Clés de storage : source unique dans NtcUtils (revue 2026-06-10)
+const STORAGE_KEYS = NtcUtils.STORAGE_KEYS;
 
 function clearAuthSession() {
   _csrfToken = null;
@@ -59,7 +57,7 @@ function clearAuthSession() {
         ],
         runAt: 'document_idle',
       }]);
-      console.warn('[NTC] Scripts enregistrés via scripting.messageDisplay \u2713');
+      NtcUtils.log('Scripts enregistrés via scripting.messageDisplay \u2713');
     } else if (messenger.messageDisplayScripts &&
       typeof messenger.messageDisplayScripts.register === 'function') {
       // TB 115-127 — API legacy
@@ -70,7 +68,7 @@ function clearAuthSession() {
           { file: 'src/content/email_bridge.js' }
         ]
       });
-      console.warn('[NTC] Scripts enregistrés via messageDisplayScripts (legacy) \u2713');
+      NtcUtils.log('Scripts enregistrés via messageDisplayScripts (legacy) \u2713');
     } else {
       console.error('[NTC] Aucune API d\'enregistrement de messageDisplayScript disponible');
     }
@@ -89,13 +87,13 @@ function clearAuthSession() {
     const { valid } = NtcAuth.validateCookies(cookieMap);
     if (valid) {
       NtcAuth.startCookieRotationSchedule();
-      console.warn('[NTC] Rotation des cookies démarrée au lancement (déjà authentifié) ✓');
+      NtcUtils.log('Rotation des cookies démarrée au lancement (déjà authentifié) ✓');
     }
   } catch (err) {
     console.error('[NTC] Erreur initialisation auth au lancement :', err.message);
   }
 
-  console.warn('[NTC] background.js initialisé ✓');
+  NtcUtils.log('background.js initialisé ✓');
 })();
 
 // ─────────────────────────────────────────────
@@ -150,15 +148,19 @@ async function getActiveMailTabAndHeader() {
  * @returns {{ subject: string, from: string, to: string, date: string }}
  */
 function extractDomain(author) {
-  const match = (author ?? '').match(/<([^@>]+@([^>]+))>/);
-  return match ? match[2] : '';
+  // Format « Nom <a@b.com> » puis fallback « a@b.com » nu (revue 2026-06-10)
+  const src = author ?? '';
+  const match = src.match(/<[^@>\s]+@([^>\s]+)>/) || src.match(/[^@\s<,;]+@([^\s>,;]+)/);
+  return match ? match[1] : '';
 }
 
 function buildGrounding(header) {
   const subject = header.subject || '(no subject)';
   const from = header.author || '(unknown)';
   const to = (header.recipients || []).join(', ') || '(unknown)';
-  const date = header.date ? new Date(header.date).toISOString() : '(unknown)';
+  // null si absente — les consommateurs affichent un libellé i18n.
+  // Jamais de chaîne sentinelle type '(unknown)' → "Invalid Date" (revue 2026-06-10).
+  const date = header.date ? new Date(header.date).toISOString() : null;
   return {
     subject,
     from,
@@ -192,22 +194,16 @@ function extractEmailBody(parts, acc) {
 }
 
 /**
- * Extrait les URLs uniques du corps d'un email.
- *
- * @param  {string} body - Texte brut ou HTML de l'email.
- * @returns {string[]}   - Tableau d'URLs dédupliquées.
- */
-function extractUrls(body) {
-  const matches = body.match(/https?:\/\/[^\s<>"')\]]+/g) || [];
-  return [...new Set(matches)];
-}
-
-/**
  * Filtre les pièces jointes supportées par NotebookLM (par MIME type et taille).
- * PJ > 200 MB sont exclues avec un log.
+ *
+ * Revue 2026-06-10 — plus de filtrage silencieux :
+ *   - PJ > 200 MB → retournée avec { tooLarge: true } (affichée grisée)
+ *   - PJ sans extension ni MIME reconnu (< 10 MB) → { unknownType: true,
+ *     contentType: 'text/plain' } (décochée par défaut, opt-in explicite)
+ *   - Format non supporté → masquée
  *
  * @param  {Array} attachments - Retour de messenger.messages.listAttachments().
- * @returns {Array} - Pièces jointes filtrées, avec { name, partName, contentType, size }.
+ * @returns {Array} - PJ avec { name, partName, contentType, size, tooLarge?, unknownType? }.
  */
 function filterSupportedAttachments(attachments) {
   const MAX_SIZE = 200 * 1024 * 1024; // 200 MB
@@ -226,7 +222,9 @@ function filterSupportedAttachments(attachments) {
     'image/png', 'image/jpeg', 'image/webp', 'image/heic', 'image/heif',
     'audio/mpeg', 'audio/mp4', 'audio/wav', 'audio/webm', 'audio/ogg',
     'audio/flac', 'audio/aac', 'audio/x-aiff',
-    'video/mp4', 'video/mpeg', 'video/mov', 'video/avi', 'video/x-flv',
+    // 'video/quicktime' (.mov) — ajouté en revue 2026-06-10 ;
+    // 'video/mov' retiré (type MIME inexistant)
+    'video/mp4', 'video/mpeg', 'video/quicktime', 'video/avi', 'video/x-flv',
     'video/x-ms-wmv', 'video/3gpp', 'video/webm',
   ]);
 
@@ -269,12 +267,10 @@ function filterSupportedAttachments(attachments) {
 
   const filtered = [];
   for (const att of attachments || []) {
-    if (att.size && att.size > MAX_SIZE) {
-      console.warn('[NTC] PJ trop grande (> 200 MB) :', att.name);
-      continue;
-    }
-
+    // 1. Résoudre le MIME d'abord (audit 2026-06-10) : une PJ d'un format
+    //    non supporté reste masquée même si elle est aussi trop volumineuse.
     let mime = (att.contentType || '').toLowerCase().split(';')[0].trim();
+    let unknownType = false;
     if (!SUPPORTED_MIME.has(mime) || mime === 'application/octet-stream' || !mime) {
       const extMatch = (att.name || '').match(/\.([^.]+)$/);
       if (extMatch) {
@@ -282,20 +278,28 @@ function filterSupportedAttachments(attachments) {
         if (EXT_TO_MIME[ext]) {
           mime = EXT_TO_MIME[ext];
         }
-      } else {
-        // Pas d'extension — fallback sur text/plain si la taille est raisonnable (< 10 MB)
-        if (att.size && att.size < 10 * 1024 * 1024) {
-          mime = 'text/plain';
-        }
+      } else if (att.size && att.size < 10 * 1024 * 1024) {
+        // Pas d'extension ni MIME reconnu : proposé explicitement à
+        // l'utilisateur (décoché par défaut) — import en text/plain
+        // uniquement sur opt-in (revue 2026-06-10).
+        mime = 'text/plain';
+        unknownType = true;
       }
     }
 
-    if (SUPPORTED_MIME.has(mime)) {
-      filtered.push({
-        ...att,
-        contentType: mime
-      });
+    // 2. Format non supporté → masquée
+    if (!SUPPORTED_MIME.has(mime)) continue;
+
+    // 3. PJ trop volumineuse : affichée grisée, jamais importable
+    if (att.size && att.size > MAX_SIZE) {
+      NtcUtils.log('PJ trop grande (> 200 MB) :', att.name);
+      filtered.push({ ...att, contentType: mime, tooLarge: true });
+      continue;
     }
+
+    const entry = { ...att, contentType: mime };
+    if (unknownType) entry.unknownType = true;
+    filtered.push(entry);
   }
 
   return filtered;
@@ -323,7 +327,7 @@ async function handleConnectAuth() {
       _csrfToken = tokens.csrfToken;
       _sessionId = tokens.sessionId;
     } catch (e) {
-      console.warn('[NTC] fetchCSRFTokens après auth :', e.message);
+      NtcUtils.log('fetchCSRFTokens après auth :', e.message);
     }
 
     NtcAuth.startCookieRotationSchedule();
@@ -349,18 +353,14 @@ async function handleGetActiveEmailMeta() {
     throw err;
   }
 
-  const detectedUrls = extractUrls(body.html || body.text);
-
   const rawAttachments = await messenger.messages.listAttachments(header.id);
   const attachments = filterSupportedAttachments(rawAttachments);
 
   return {
     ...grounding,
     attachments,
-    detectedUrls,
     hasPdf: true,  // Email → PDF toujours disponible
     hasMd: true,  // Email → MD toujours disponible
-    hasUrl: detectedUrls.length > 0,
     messageId: header.id,
   };
 }
@@ -372,37 +372,20 @@ async function handleGetActiveEmailMeta() {
 async function handleGetNotebooks() {
   const cookieMap = await NtcAuth.collectGoogleCookies();
   const { valid } = NtcAuth.validateCookies(cookieMap);
-  console.warn('[NTC-BG] handleGetNotebooks — cookies valides?', valid, 'nb cookies:', Object.keys(cookieMap).join(', '));
+  NtcUtils.log('handleGetNotebooks — cookies valides?', valid, 'nb cookies:', Object.keys(cookieMap).join(', '));
   if (!valid) { const e = new Error('AUTH_EXPIRED'); e.code = 'AUTH_EXPIRED'; throw e; }
 
-  let csrfOk = false;
-  try {
-    const tokens = await NtcAuth.fetchCSRFTokens(_activeAuthuserIndex);
-    _csrfToken = tokens.csrfToken;
-    _sessionId = tokens.sessionId;
-    csrfOk = !!_csrfToken;
-    console.warn('[NTC-BG] fetchCSRFTokens — csrfToken présent?', csrfOk, 'sessionId présent?', !!_sessionId);
-  } catch (err) {
-    console.error('[NTC-BG] fetchCSRFTokens ÉCHEC :', err.message);
-    // Retourner un "notebook" diagnostic visible dans la popup
-    return { notebooks: [{ id: '__diag__', title: '\u274C CSRF: ' + err.message }] };
-  }
+  // fetchCSRFTokens lève AUTH_EXPIRED si le token est introuvable (revue 2026-06-10).
+  // Plus d'entrées diagnostic __diag__ en production : les erreurs remontent
+  // à la popup qui affiche le bon message (mode DEBUG : diag gérés par NtcRpc).
+  const tokens = await NtcAuth.fetchCSRFTokens(_activeAuthuserIndex);
+  _csrfToken = tokens.csrfToken;
+  _sessionId = tokens.sessionId;
+  NtcUtils.log('fetchCSRFTokens — csrfToken présent?', !!_csrfToken, 'sessionId présent?', !!_sessionId);
 
-  try {
-    const result = await NtcRpc.listNotebooks(_csrfToken, _activeAuthuserIndex);
-    console.warn('[NTC-BG] listNotebooks résultat :', result.notebooks.length, 'carnets');
-    if (result.notebooks.length === 0) {
-      // Aucun carnet retourné — ajouter une entrée diagnostic
-      result.notebooks.push({
-        id: '__diag__',
-        title: '\u26A0\uFE0F 0 carnets. CSRF: ' + (csrfOk ? 'OK' : 'NULL') + ', authuser: ' + _activeAuthuserIndex
-      });
-    }
-    return result;
-  } catch (err) {
-    console.error('[NTC-BG] listNotebooks ÉCHEC :', err.message);
-    return { notebooks: [{ id: '__diag__', title: '\u274C RPC: ' + err.message }] };
-  }
+  const result = await NtcRpc.listNotebooks(_csrfToken, _activeAuthuserIndex);
+  NtcUtils.log('listNotebooks résultat :', result.notebooks.length, 'carnets');
+  return result;
 }
 
 async function handleCreateNotebook(message) {
@@ -440,13 +423,15 @@ async function handleSetAccount(message) {
 // ─────────────────────────────────────────────
 
 /**
- * Récupère un message d'erreur détaillé contenant des informations RPC de debug
- * si elles sont disponibles.
+ * Récupère un message d'erreur détaillé contenant des informations RPC de debug.
+ * Mode DEBUG uniquement (revue 2026-06-10) : en production, le détail enrichi
+ * exposerait des fragments de réponses RPC brutes dans l'UI.
  *
  * @param {Error} err - L'erreur interceptée.
- * @returns {string} Le détail d'erreur enrichi.
+ * @returns {string} Le détail d'erreur (enrichi en DEBUG, sobre sinon).
  */
 function getRichErrorDetail(err) {
+  if (!NtcUtils.DEBUG) return err.message;
   const debug = NtcRpc.getLastDebugInfo ? NtcRpc.getLastDebugInfo() : null;
   if (debug) {
     const rawSnippet = debug.rawText ? debug.rawText.slice(0, 150).replace(/\r?\n/g, '↵') : 'null';
@@ -483,7 +468,6 @@ async function handleStartCapture(message) {
     switch (message.format) {
       case 'pdf': await handlePdfCapture(message); break;
       case 'md': await handleMdCapture(message); break;
-      case 'url': await handleUrlCapture(message); break;
       case 'attachment': await handleAttachmentCapture(message); break;
       default:
         notifyUI({ status: 'error', code: 'UNKNOWN' });
@@ -517,7 +501,7 @@ async function handlePdfCapture(message) {
     return;
   }
   // 1. Les scripts sont déjà pré-enregistrés au démarrage, rien à injecter ici.
-  console.warn('[NTC-BG] Capture PDF en cours, vérification du bridge...');
+  NtcUtils.log('Capture PDF en cours, vérification du bridge...');
   // 2. Vérifier que le bridge est opérationnel et prêt
   try {
     const checkResult = await browser.tabs.sendMessage(mailTab.id, {
@@ -581,6 +565,9 @@ async function handlePdfCapture(message) {
     const byteArray = new Uint8Array(byteNumbers);
     const pdfBlob = new Blob([byteArray], { type: 'application/pdf' });
 
+    // Sujet brut mémorisé côté background pour le téléchargement local
+    // (la popup n'envoie plus de titre tronqué — revue 2026-06-10)
+    _lastCaptureTitle = captureResult.title || 'email';
     const filename = NtcUtils.sanitizeFilename(`${captureResult.title || 'email'}.pdf`);
 
     await NtcRpc.uploadFileSource(
@@ -630,7 +617,10 @@ async function handleMdCapture(message) {
       mdLines.push('');
     }
 
-    const dateStr = grounding.date ? new Date(grounding.date).toLocaleString() : '(unknown)';
+    // grounding.date est null si absente (revue 2026-06-10) — libellé i18n
+    const dateStr = grounding.date
+      ? new Date(grounding.date).toLocaleString()
+      : (browser.i18n.getMessage('labelDateUnknown') || '—');
     mdLines.push(`> **Email** | **De :** ${grounding.from} | **Objet :** ${grounding.subject} | **Date :** ${dateStr}`);
     mdLines.push('');
     mdLines.push('---');
@@ -646,6 +636,7 @@ async function handleMdCapture(message) {
 
     const mdText = mdLines.join('\n').replace(/\r\n/g, '\n');
     _lastCaptureMdText = mdText;
+    _lastCaptureTitle = grounding.subject || 'email';
 
     const filename = NtcUtils.sanitizeFilename(`${grounding.subject || 'email'}.md`);
 
@@ -672,31 +663,7 @@ async function handleMdCapture(message) {
   }
 }
 
-// ── Pipeline URL (Phase 4) ──────────────────────
-async function handleUrlCapture(message) {
-  notifyUI({ status: 'capturing', statusKey: 'statusUploading' });
-
-  try {
-    await NtcRpc.addUrlSource(
-      _csrfToken,
-      message.selectedUrl,
-      message.notebookId,
-      _activeAuthuserIndex
-    );
-
-    // Mémoriser le dernier carnet sélectionné
-    await browser.storage.local.set({ [STORAGE_KEYS.LAST_NOTEBOOK]: message.notebookId });
-
-    notifyUI({
-      status: 'success',
-      notebookId: message.notebookId,
-      showDownload: false
-    });
-  } catch (err) {
-    console.error('[NTC-BG] Échec de l\'import URL :', err.message);
-    notifyUI({ status: 'error', code: err.code || 'UNKNOWN', detail: getRichErrorDetail(err) });
-  }
-}
+// ── Pipeline URL — SUPPRIMÉ (revue 2026-06-10, backend jamais câblé côté UI) ──
 
 // ── Pipeline Attachment (Phase 4) ───────────────
 async function handleAttachmentCapture(message) {
@@ -790,18 +757,52 @@ function handleCaptureError(message) {
 // HANDLERS — TÉLÉCHARGEMENT
 // ─────────────────────────────────────────────
 
+/**
+ * Révoque l'object URL une fois le téléchargement terminé ou interrompu
+ * (revue 2026-06-10 — le background MV2 est persistant : sans revoke, fuite mémoire).
+ */
+function revokeWhenDownloadDone(downloadId, url) {
+  function onChanged(delta) {
+    if (delta.id !== downloadId || !delta.state) return;
+    if (delta.state.current === 'complete' || delta.state.current === 'interrupted') {
+      URL.revokeObjectURL(url);
+      browser.downloads.onChanged.removeListener(onChanged);
+    }
+  }
+  browser.downloads.onChanged.addListener(onChanged);
+}
+
+/**
+ * Télécharge localement la dernière capture (PDF ou MD).
+ * Le nom de fichier vient du sujet brut mémorisé à la capture
+ * (_lastCaptureTitle), assaini — jamais du texte tronqué de la popup
+ * (revue 2026-06-10).
+ */
 async function handleDownloadCapture(message) {
+  const title = NtcUtils.sanitizeFilename(_lastCaptureTitle || 'email');
+
+  let blob = null;
+  let ext = null;
   if (message.fileType === 'pdf' && _lastCapturePdfB64) {
     const byteStr = atob(_lastCapturePdfB64.split(',')[1]);
     const bytes = new Uint8Array(byteStr.length);
     for (let i = 0; i < byteStr.length; i++) bytes[i] = byteStr.charCodeAt(i);
-    const blob = new Blob([bytes], { type: 'application/pdf' });
-    const url = URL.createObjectURL(blob);
-    await browser.downloads.download({ url, filename: `${message.title || 'email'}.pdf` });
+    blob = new Blob([bytes], { type: 'application/pdf' });
+    ext = 'pdf';
   } else if (message.fileType === 'md' && _lastCaptureMdText) {
-    const blob = new Blob([_lastCaptureMdText], { type: 'text/markdown' });
-    const url = URL.createObjectURL(blob);
-    await browser.downloads.download({ url, filename: `${message.title || 'email'}.md` });
+    blob = new Blob([_lastCaptureMdText], { type: 'text/markdown' });
+    ext = 'md';
+  }
+  if (!blob) return;
+
+  const url = URL.createObjectURL(blob);
+  try {
+    const downloadId = await browser.downloads.download({ url, filename: `${title}.${ext}` });
+    revokeWhenDownloadDone(downloadId, url);
+  } catch (err) {
+    // Téléchargement refusé/annulé : révoquer immédiatement (audit 2026-06-10)
+    URL.revokeObjectURL(url);
+    console.error('[NTC] Téléchargement échoué :', err.message);
   }
 }
 

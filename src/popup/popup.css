@@ -283,6 +283,18 @@ body {
   font-weight: 600;
 }
 
+/* Entrée diagnostic (mode DEBUG) : visible, jamais sélectionnable */
+.notebook-item.diag {
+  opacity: 0.6;
+  cursor: default;
+  font-size: 10px;
+  font-family: monospace;
+}
+
+.notebook-item.diag:hover {
+  background: transparent;
+}
+
 /* ── Attachment list ─────────────────────────────────────────────────── */
 .attachment-list {
   list-style: none;
@@ -330,9 +342,31 @@ body {
   flex-shrink: 0;
 }
 
-/* ── URL selector ────────────────────────────────────────────────────── */
-.url-select {
-  font-size: 12px;
+/* PJ > 200 MB : grisée, non importable (revue 2026-06-10) */
+.attachment-item.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.attachment-item.disabled .attachment-name,
+.attachment-item.disabled input[type="checkbox"] {
+  cursor: not-allowed;
+}
+
+.attachment-size.too-large {
+  color: var(--c-error, #e05252);
+  font-weight: 600;
+}
+
+/* PJ de type inconnu : badge informatif, opt-in explicite (revue 2026-06-10) */
+.attachment-flag {
+  font-size: 9px;
+  color: var(--c-text-muted);
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-sm);
+  padding: 1px 4px;
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 /* ── Boutons ─────────────────────────────────────────────────────────── */
@@ -412,7 +446,7 @@ body {
   border-color: var(--c-primary);
 }
 
-/* Boutons d'import (PDF / MD / URL) */
+/* Boutons d'import (PDF / MD) */
 .btn-group {
   display: flex;
   gap: var(--sp-sm);

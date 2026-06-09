@@ -1,5 +1,5 @@
 // email_pdf_generator.js — Générateur PDF depuis le DOM email (jsPDF Walker)
-// NotebookLM Clipper for Thunderbird — v1.0.0
+// NotebookLM Clipper for Thunderbird
 //
 // ⚠️ Exécuté à la demande dans l'onglet email.
 // ⚠️ Dépend de jspdf.umd.min.js injecté juste avant lui.
@@ -227,11 +227,21 @@ window.__ntc_generate_pdf = function (grounding, intentNote) {
       doc.setFont("Helvetica", "normal");
       doc.setFontSize(9);
 
+      // grounding.date est null si absente (revue 2026-06-10) — garde
+      // anti-"Invalid Date" : on ne formate que si la date est parsable.
+      let dateLabel = "—";
+      if (grounding.date) {
+        const parsedDate = new Date(grounding.date);
+        if (!isNaN(parsedDate.getTime())) {
+          dateLabel = parsedDate.toLocaleString();
+        }
+      }
+
       const metadata = [
         { label: "Objet :", val: grounding.subject },
         { label: "De    :", val: grounding.author },
         { label: "À     :", val: grounding.recipients },
-        { label: "Date  :", val: grounding.date ? new Date(grounding.date).toLocaleString() : "(unknown)" }
+        { label: "Date  :", val: dateLabel }
       ];
 
       metadata.forEach(item => {

@@ -1,9 +1,8 @@
 // rpc_client.js — Client RPC NotebookLM (Thunderbird MV2)
-// NotebookLM Clipper for Thunderbird — v1.0.0
+// NotebookLM Clipper for Thunderbird
 //
-// ⚠️ STUB PHASE 1 — Les implémentations complètes arrivent en Phase 3.
-// Les fonctions parseChunkedResponse, stripAntiXssi, extractRpcResult
-// sont la traduction exacte de decoder.py — NE JAMAIS les réécrire.
+// ⚠️ Les fonctions parseChunkedResponse et extractRpcResult sont la
+// traduction exacte de decoder.py — NE JAMAIS les réécrire.
 //
 // Référence : API-REFERENCE.md §2, §3, §4, §5, §6
 
@@ -74,7 +73,8 @@ function parseChunkedResponse(responseBytes) {
             const errDetail = `[c${chunks.length + 1} err: ${e.message} | len: ${jsonStr.length} | start: ${jsonStr.slice(0, 30)} | end: ${jsonStr.slice(-30)}]`;
             _lastError = _lastError ? _lastError + ' || ' + errDetail : errDetail;
           }
-          console.warn('[NTC-RPC] parseChunkedResponse — JSON.parse échoué sur chunk:', jsonStr.slice(0, 80));
+          // Fragment de réponse brute : DEBUG uniquement (audit 2026-06-10)
+          NtcUtils.log('parseChunkedResponse — JSON.parse échoué sur chunk:', jsonStr.slice(0, 80));
         }
       }
     }
@@ -347,7 +347,7 @@ async function batchExecute(rpcId, params, csrfToken, authuserIndex) {
   _lastRawText = '(non récupéré)';
 
   const rpcReq = encodeRpcRequest(rpcId, params);
-  console.warn('[NTC-RPC] batchExecute params for', rpcId, ':', JSON.stringify(params));
+  NtcUtils.log('batchExecute', rpcId, '— params length:', JSON.stringify(params).length);
   const body = buildRequestBody(rpcReq, csrfToken);
   const qs = buildQueryString(rpcId, authuserIndex);
   const url = `${NBLM_BATCH_URL}?${qs}`;
@@ -364,15 +364,13 @@ async function batchExecute(rpcId, params, csrfToken, authuserIndex) {
     body,
   });
 
-  console.warn('[NTC-RPC] batchExecute', rpcId, '→ HTTP', resp.status, 'ok?', resp.ok);
+  NtcUtils.log('batchExecute', rpcId, '→ HTTP', resp.status, 'ok?', resp.ok);
 
   if (!resp.ok) {
     if (resp.status === 401 || resp.status === 403) {
-      await browser.storage.local.set({ ntc_auth_ready: false });
+      await browser.storage.local.set({ [NtcUtils.STORAGE_KEYS.AUTH_READY]: false });
       const e = new Error('AUTH_EXPIRED'); e.code = 'AUTH_EXPIRED'; throw e;
     }
-    const errText = await resp.text();
-    console.warn('[NTC-RPC] HTTP error body (500 chars):', errText.slice(0, 500));
     throw new Error(`HTTP ${resp.status}`);
   }
 
@@ -387,13 +385,12 @@ async function batchExecute(rpcId, params, csrfToken, authuserIndex) {
     _lastRawText = '(échec décodage UTF-8)';
     _lastError = 'dec_err: ' + err.message;
   }
-  console.warn('[NTC-RPC] raw response (300 chars):', _lastRawText.slice(0, 300));
 
   try {
     const chunks = parseChunkedResponse(bytes);
     _lastChunksLength = chunks.length;
     const result = extractRpcResult(chunks, rpcId);
-    console.warn('[NTC-RPC] chunks.length:', chunks.length, ' extractRpcResult →', JSON.stringify(result).slice(0, 300));
+    NtcUtils.log('batchExecute', rpcId, '— chunks:', chunks.length, 'result:', result === null ? 'null' : typeof result);
     return result;
   } catch (err) {
     _lastError = 'parse_err: ' + err.message;
@@ -409,30 +406,35 @@ async function batchExecute(rpcId, params, csrfToken, authuserIndex) {
  * Liste les carnets NotebookLM.
  * RPC ID : wXbhsf (voir API-REFERENCE.md §1)
  *
- * @param {string} cookieString
+ * Les entrées diagnostic `__diag__` ne sont générées qu'en mode
+ * NtcUtils.DEBUG (revue 2026-06-10). En production : liste vide si le
+ * résultat est null/vide (compte sans carnet — cas légitime), erreur
+ * API_CHANGED si la structure est inattendue.
+ *
  * @param {string} csrfToken
  * @param {number} authuserIndex
  * @returns {Promise<{ notebooks: Array<{ id: string, title: string }> }>}
  */
 async function listNotebooks(csrfToken, authuserIndex) {
-  console.warn('[NTC-RPC] listNotebooks — csrfToken présent?', !!csrfToken, 'authuser:', authuserIndex);
+  NtcUtils.log('listNotebooks — csrfToken présent?', !!csrfToken, 'authuser:', authuserIndex);
   const result = await batchExecute('wXbhsf', [null, 1, null, [2]], csrfToken, authuserIndex);
-  console.warn('[NTC-RPC] wXbhsf result type:', typeof result, 'isArray:', Array.isArray(result));
 
-  // ── Diagnostic : résultat null ──────────────────────────────────────────
-  if (!result) {
-    const raw = _lastRawText.slice(0, 80).replace(/\r?\n/g, '↵');
-    console.warn('[NTC-RPC] wXbhsf résultat null — raw:', raw);
-    const diagTitle = `🔍 B:${_lastBytesLength} C:${_lastChunksLength} Err:${_lastError} Raw:${raw}`;
-    return { notebooks: [{ id: '__diag__', title: diagTitle }] };
+  // ── Résultat null ou vide : compte sans carnet (cas légitime) ───────────
+  if (!result || (Array.isArray(result) && result.length === 0)) {
+    if (NtcUtils.DEBUG) {
+      const raw = _lastRawText.slice(0, 80).replace(/\r?\n/g, '↵');
+      const diagTitle = `🔍 B:${_lastBytesLength} C:${_lastChunksLength} Err:${_lastError} Raw:${raw}`;
+      return { notebooks: [{ id: '__diag__', title: diagTitle }] };
+    }
+    return { notebooks: [] };
   }
+  // ── Structure inattendue : API probablement modifiée ────────────────────
   if (!Array.isArray(result)) {
-    const raw = JSON.stringify(result).slice(0, 120);
-    console.warn('[NTC-RPC] wXbhsf non-array :', raw);
-    return { notebooks: [{ id: '__diag__', title: '\uD83D\uDD0D non-array: ' + raw }] };
-  }
-  if (result.length === 0) {
-    return { notebooks: [{ id: '__diag__', title: '\uD83D\uDD0D array vide []' }] };
+    if (NtcUtils.DEBUG) {
+      const raw = JSON.stringify(result).slice(0, 120);
+      return { notebooks: [{ id: '__diag__', title: '🔍 non-array: ' + raw }] };
+    }
+    const e = new Error('API_CHANGED'); e.code = 'API_CHANGED'; throw e;
   }
 
   // ── Mapping ─────────────────────────────────────────────────────────────
@@ -490,15 +492,18 @@ async function listNotebooks(csrfToken, authuserIndex) {
     })
     .filter(nb => nb.id !== null);
 
-  console.warn('[NTC-RPC] carnets trouvés :', notebooks.length);
+  NtcUtils.log('carnets trouvés :', notebooks.length);
 
+  if (notebooks.length === 0 && !NtcUtils.DEBUG) {
+    // Des données présentes mais aucun carnet mappé → structure modifiée
+    const e = new Error('API_CHANGED'); e.code = 'API_CHANGED'; throw e;
+  }
   if (notebooks.length === 0) {
-    // Montrer la structure brute du premier élément pour continuer le diagnostic
+    // Mode DEBUG : montrer la structure brute du premier élément
     const raw0 = JSON.stringify(nbList[0]).slice(0, 150);
-    console.warn('[NTC-RPC] mapping échoué — nbList[0]:', raw0);
     return {
       notebooks: [
-        { id: '__diag__', title: '\uD83D\uDD0D nbList[0]: ' + raw0 },
+        { id: '__diag__', title: '🔍 nbList[0]: ' + raw0 },
       ]
     };
   }
@@ -510,7 +515,6 @@ async function listNotebooks(csrfToken, authuserIndex) {
  * Crée un nouveau carnet NotebookLM.
  * RPC ID : CCqFvf (voir API-REFERENCE.md §1)
  *
- * @param {string} cookieString
  * @param {string} csrfToken
  * @param {string} title
  * @param {number} authuserIndex
@@ -546,17 +550,8 @@ async function addTextSource(csrfToken, text, title, notebookId, authuserIndex) 
   return await batchExecute('izAoDd', params, csrfToken, authuserIndex);
 }
 
-/**
- * Importe une URL dans un carnet.
- * RPC ID : izAoDd — wrapper 8-slots, slot [2] (API-REFERENCE.md §5.2)
- */
-async function addUrlSource(csrfToken, url, notebookId, authuserIndex) {
-  const params = [
-    [[null, null, [url], null, null, null, null, null]],
-    notebookId, [2], null, null
-  ];
-  return await batchExecute('izAoDd', params, csrfToken, authuserIndex);
-}
+// addUrlSource() supprimé — revue de code 2026-06-10 (pipeline URL retiré de la v1).
+// Réintroduction éventuelle : voir API-REFERENCE.md §5.2 (wrapper 8-slots, slot [2]).
 
 /**
  * Upload resumable d'un fichier binaire (PDF, PJ) dans un carnet.
@@ -648,7 +643,6 @@ var NtcRpc = {
   listNotebooks,
   createNotebook,
   addTextSource,
-  addUrlSource,
   uploadFileSource,
   getLastDebugInfo,
 };

@@ -11,7 +11,6 @@
     "message": "Clip vers NotebookLM",
     "description": "Infobulle du bouton message_display_action"
   },
-
   "stateAuthRequired": {
     "message": "Connexion à NotebookLM requise",
     "description": "Titre affiché quand l'authentification est nécessaire"
@@ -28,7 +27,6 @@
     "message": "Chargement…",
     "description": "Message de chargement générique"
   },
-
   "labelSubject": {
     "message": "Objet",
     "description": "Étiquette de la ligne objet dans les métadonnées email"
@@ -41,7 +39,6 @@
     "message": "Date",
     "description": "Étiquette de la date dans les métadonnées email"
   },
-
   "labelNotebook": {
     "message": "Carnet",
     "description": "Étiquette au-dessus du sélecteur de carnet"
@@ -66,7 +63,6 @@
     "message": "Veuillez d'abord sélectionner un carnet.",
     "description": "Erreur quand l'utilisateur tente d'importer sans carnet sélectionné"
   },
-
   "btnPdf": {
     "message": "📄 PDF",
     "description": "Bouton pour importer l'email en PDF"
@@ -75,11 +71,6 @@
     "message": "📝 Markdown",
     "description": "Bouton pour importer l'email en Markdown"
   },
-  "btnUrl": {
-    "message": "🔗 URL",
-    "description": "Bouton pour importer une URL détectée dans l'email"
-  },
-
   "intentNoteLabelVisible": {
     "message": "Intention de recherche (optionnel)",
     "description": "Étiquette du champ note d'intention (visible PDF/MD, masqué pour les PJ)"
@@ -88,7 +79,6 @@
     "message": "Décrivez votre objectif de recherche…",
     "description": "Texte indicatif du champ note d'intention"
   },
-
   "labelAttachments": {
     "message": "Pièces jointes",
     "description": "Étiquette au-dessus de la liste des pièces jointes"
@@ -103,12 +93,10 @@
       }
     }
   },
-
   "labelAccount": {
     "message": "Compte Google",
     "description": "Étiquette au-dessus du sélecteur de compte"
   },
-
   "statusCapturing": {
     "message": "Génération en cours…",
     "description": "Affiché pendant la génération du PDF ou Markdown"
@@ -121,15 +109,20 @@
     "message": "Import de la pièce jointe $CURRENT$ sur $TOTAL$…",
     "description": "Progression de l'import groupé de pièces jointes",
     "placeholders": {
-      "CURRENT": { "content": "$1", "example": "2" },
-      "TOTAL":   { "content": "$2", "example": "4" }
+      "CURRENT": {
+        "content": "$1",
+        "example": "2"
+      },
+      "TOTAL": {
+        "content": "$2",
+        "example": "4"
+      }
     }
   },
   "statusSuccess": {
     "message": "Import réussi ✓",
     "description": "Affiché après un import réussi"
   },
-
   "btnOpenNotebook": {
     "message": "Ouvrir →",
     "description": "Bouton pour ouvrir le carnet après un import réussi"
@@ -146,11 +139,6 @@
     "message": "Nouvel import",
     "description": "Bouton pour démarrer un nouvel import après un succès"
   },
-  "btnImportUrl": {
-    "message": "Importer cette URL",
-    "description": "Bouton pour confirmer la sélection d'URL"
-  },
-
   "errorApiChanged": {
     "message": "L'API NotebookLM a été modifiée. Une mise à jour est requise.",
     "description": "Erreur API_CHANGED"
@@ -195,7 +183,18 @@
     "message": "$COUNT$ pièce(s) jointe(s) n'ont pas pu être importée(s).",
     "description": "Avertissement dans l'état SUCCESS si certaines PJ ont échoué",
     "placeholders": {
-      "COUNT": { "content": "$1", "example": "1" }
+      "COUNT": {
+        "content": "$1",
+        "example": "1"
+      }
     }
+  },
+  "attachmentUnknownType": {
+    "message": "Type inconnu — sera importé comme texte",
+    "description": "Badge shown next to an attachment with no recognized type — imported as plain text only if explicitly checked (code review 2026-06-10)"
+  },
+  "labelDateUnknown": {
+    "message": "(date inconnue)",
+    "description": "Label displayed when the email has no parsable date (code review 2026-06-10)"
   }
 }

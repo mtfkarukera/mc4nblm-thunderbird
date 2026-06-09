@@ -1,6 +1,0 @@
-{
-  "devDependencies": {
-    "globals": "^17.6.0"
-  },
-  "type": "module"
-}

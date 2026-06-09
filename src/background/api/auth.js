@@ -1,5 +1,5 @@
 // auth.js — Authentification Google par cookies Gecko (Thunderbird MV2)
-// NotebookLM Clipper for Thunderbird — v1.0.0
+// NotebookLM Clipper for Thunderbird
 //
 // Référence : API-REFERENCE.md §7 + AGENTS.md §5.1
 // ⚠️ Ne jamais stocker les valeurs de cookies dans browser.storage.local.
@@ -71,19 +71,14 @@ function validateCookies(cookieMap) {
   const missingTier1 = TIER1_COOKIES.filter(name => !cookieMap[name]);
 
   if (missingTier1.length > 0) {
-    console.warn('[NTC] Cookies Tier 1 manquants :', missingTier1);
+    NtcUtils.log('Cookies Tier 1 manquants :', missingTier1);
     return { valid: false, cookieString: '' };
   }
 
-  const missingTier2 = TIER2_COOKIES.filter(name => !cookieMap[name]);
   const hasTier2 = cookieMap['OSID'] || (cookieMap['APISID'] && cookieMap['SAPISID']);
 
   if (!hasTier2) {
-    console.warn('[NTC] Aucun cookie Tier 2 (OSID ou APISID+SAPISID). Session peut être instable.');
-  }
-
-  if (missingTier2.length > 0 && hasTier2) {
-    // Tier 2 partiellement présent — pas bloquant
+    NtcUtils.log('Aucun cookie Tier 2 (OSID ou APISID+SAPISID). Session peut être instable.');
   }
 
   const cookieString = buildCookieString(cookieMap);
@@ -110,7 +105,7 @@ async function fetchCSRFTokens(authuserIndex) {
 
   if (!response.ok) {
     if (response.status === 401 || response.status === 403) {
-      await browser.storage.local.set({ ntc_auth_ready: false });
+      await browser.storage.local.set({ [NtcUtils.STORAGE_KEYS.AUTH_READY]: false });
       const err = new Error('AUTH_EXPIRED');
       err.code = 'AUTH_EXPIRED';
       throw err;
@@ -123,8 +118,18 @@ async function fetchCSRFTokens(authuserIndex) {
   const snlMatch = html.match(/"SNlM0e":"([^"]+)"/);
   const fdrMatch = html.match(/"FdrFJe":"([^"]+)"/);
 
+  // Pas de token CSRF dans la page (page de consentement, compte non connecté
+  // à NotebookLM, etc.) → session inutilisable : AUTH_EXPIRED explicite.
+  // Ne JAMAIS retourner csrfToken: null silencieusement (revue 2026-06-10).
+  if (!snlMatch) {
+    await browser.storage.local.set({ [NtcUtils.STORAGE_KEYS.AUTH_READY]: false });
+    const err = new Error('AUTH_EXPIRED');
+    err.code = 'AUTH_EXPIRED';
+    throw err;
+  }
+
   return {
-    csrfToken: snlMatch ? snlMatch[1] : null,
+    csrfToken: snlMatch[1],
     sessionId: fdrMatch ? fdrMatch[1] : null,
   };
 }
@@ -135,27 +140,26 @@ async function fetchCSRFTokens(authuserIndex) {
 
 /**
  * Émet un POST RotateCookies si le délai minimum est respecté.
- * credentials: 'include' → Gecko met à jour __Secure-1PSIDTS automatiquement.
+ * credentials: 'include' → Gecko attache les cookies et met à jour
+ * __Secure-1PSIDTS automatiquement. Ne JAMAIS poser de header `Cookie`
+ * manuel : header interdit, silencieusement ignoré par fetch (revue 2026-06-10).
  */
 async function rotateCookiesIfNeeded() {
   const now = Date.now();
   if (now - _lastRotateTs < ROTATION_MIN_GAP_MS) return;
 
   try {
-    const cookieMap = await collectGoogleCookies();
-    const cookieString = buildCookieString(cookieMap);
     await fetch(ROTATE_URL, {
       method: 'POST',
       credentials: 'include',
       headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-        'Cookie': cookieString
+        'Content-Type': 'application/x-www-form-urlencoded'
       },
       body: 'continue=https://notebooklm.google.com/'
     });
     _lastRotateTs = Date.now();
   } catch (e) {
-    console.warn('[NTC] RotateCookies échoué :', e.message);
+    console.error('[NTC] RotateCookies échoué :', e.message);
   }
 }
 
@@ -204,6 +208,15 @@ async function openAuthWebContentTab(onSuccess) {
   const tab = await browser.tabs.create({ url: NBLM_URL });
   _authTabId = tab.id;
 
+  // Nettoyage commun : retire les DEUX listeners + reset _authTabId.
+  // Indispensable pour éviter la fuite de listener si l'utilisateur ferme
+  // l'onglet sans se connecter (revue 2026-06-10).
+  function cleanup() {
+    browser.tabs.onUpdated.removeListener(onTabUpdated);
+    browser.tabs.onRemoved.removeListener(onTabRemoved);
+    _authTabId = null;
+  }
+
   async function onTabUpdated(tabId, changeInfo) {
     if (tabId !== _authTabId) return;
     if (changeInfo.status !== 'complete') return;
@@ -213,15 +226,23 @@ async function openAuthWebContentTab(onSuccess) {
     const { valid } = validateCookies(cookieMap);
 
     if (valid) {
-      browser.tabs.onUpdated.removeListener(onTabUpdated);
-      try { await browser.tabs.remove(_authTabId); } catch (_e) { /* déjà fermé */ }
-      _authTabId = null;
-      await browser.storage.local.set({ ntc_auth_ready: true });
+      const tabToClose = _authTabId;
+      cleanup();
+      try { await browser.tabs.remove(tabToClose); } catch (_e) { /* déjà fermé */ }
+      await browser.storage.local.set({ [NtcUtils.STORAGE_KEYS.AUTH_READY]: true });
       onSuccess();
     }
   }
 
+  function onTabRemoved(tabId) {
+    if (tabId !== _authTabId) return;
+    // Onglet d'auth fermé manuellement sans connexion détectée
+    NtcUtils.log('Onglet auth fermé sans connexion — nettoyage des listeners');
+    cleanup();
+  }
+
   browser.tabs.onUpdated.addListener(onTabUpdated);
+  browser.tabs.onRemoved.addListener(onTabRemoved);
 }
 
 // ─────────────────────────────────────────────

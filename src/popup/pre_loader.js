@@ -1,5 +1,5 @@
 // pre_loader.js — Script d'écoute précoce des erreurs
-// NotebookLM Clipper for Thunderbird — v1.0.0
+// NotebookLM Clipper for Thunderbird
 // Chargé en premier dans popup.html pour intercepter les erreurs avant tout autre script.
 
 'use strict';
@@ -41,6 +41,10 @@ function renderErrorScreen(title, details, isLoadError) {
     document.documentElement.appendChild(div);
   }
 }
+
+// Exposé pour popup.js (factorisation revue 2026-06-10) — évite de dupliquer
+// le bloc d'écran d'erreur stylé dans initPopup().
+window.__ntcRenderErrorScreen = renderErrorScreen;
 
 // Écouteur global en phase de CAPTURE (indispensable pour intercepter les erreurs de chargement qui ne propagent pas)
 window.addEventListener('error', function(e) {

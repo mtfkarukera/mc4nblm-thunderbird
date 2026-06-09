@@ -71,10 +71,6 @@
     "message": "📝 Markdown",
     "description": "Button to import email as Markdown text"
   },
-  "btnUrl": {
-    "message": "🔗 URL",
-    "description": "Button to import a URL detected in the email"
-  },
   "intentNoteLabelVisible": {
     "message": "Ý định nghiên cứu (tùy chọn)",
     "description": "Label for the intent note textarea"
@@ -113,8 +109,14 @@
     "message": "Đang nhập tệp đính kèm $CURRENT$ trên $TOTAL$…",
     "description": "Progress message during grouped attachment import",
     "placeholders": {
-      "CURRENT": { "content": "$1", "example": "2" },
-      "TOTAL":   { "content": "$2", "example": "4" }
+      "CURRENT": {
+        "content": "$1",
+        "example": "2"
+      },
+      "TOTAL": {
+        "content": "$2",
+        "example": "4"
+      }
     }
   },
   "statusSuccess": {
@@ -136,10 +138,6 @@
   "btnNewImport": {
     "message": "Nhập mới",
     "description": "Button to start a new import after success"
-  },
-  "btnImportUrl": {
-    "message": "Nhập URL này",
-    "description": "Button to confirm URL selection in the URL selector state"
   },
   "errorApiChanged": {
     "message": "API NotebookLM đã thay đổi. Yêu cầu cập nhật phiên bản mới.",
@@ -185,7 +183,18 @@
     "message": "Không thể nhập $COUNT$ tệp đính kèm.",
     "description": "Warning shown in SUCCESS state when some attachments failed",
     "placeholders": {
-      "COUNT": { "content": "$1", "example": "1" }
+      "COUNT": {
+        "content": "$1",
+        "example": "1"
+      }
     }
+  },
+  "attachmentUnknownType": {
+    "message": "Loại không xác định — sẽ được nhập dưới dạng văn bản",
+    "description": "Badge shown next to an attachment with no recognized type — imported as plain text only if explicitly checked (code review 2026-06-10)"
+  },
+  "labelDateUnknown": {
+    "message": "(không rõ ngày)",
+    "description": "Label displayed when the email has no parsable date (code review 2026-06-10)"
   }
 }

@@ -71,10 +71,6 @@
     "message": "📝 Markdown",
     "description": "Button to import email as Markdown text"
   },
-  "btnUrl": {
-    "message": "🔗 URL",
-    "description": "Button to import a URL detected in the email"
-  },
   "intentNoteLabelVisible": {
     "message": "Intenção de pesquisa (opcional)",
     "description": "Label for the intent note textarea"
@@ -113,8 +109,14 @@
     "message": "Importando anexo $CURRENT$ de $TOTAL$…",
     "description": "Progress message during grouped attachment import",
     "placeholders": {
-      "CURRENT": { "content": "$1", "example": "2" },
-      "TOTAL":   { "content": "$2", "example": "4" }
+      "CURRENT": {
+        "content": "$1",
+        "example": "2"
+      },
+      "TOTAL": {
+        "content": "$2",
+        "example": "4"
+      }
     }
   },
   "statusSuccess": {
@@ -136,10 +138,6 @@
   "btnNewImport": {
     "message": "Nova importação",
     "description": "Button to start a new import after success"
-  },
-  "btnImportUrl": {
-    "message": "Importar esta URL",
-    "description": "Button to confirm URL selection in the URL selector state"
   },
   "errorApiChanged": {
     "message": "A API do NotebookLM foi modificada. Atualização necessária.",
@@ -185,7 +183,18 @@
     "message": "Não foi possível importar $COUNT$ anexo(s).",
     "description": "Warning shown in SUCCESS state when some attachments failed",
     "placeholders": {
-      "COUNT": { "content": "$1", "example": "1" }
+      "COUNT": {
+        "content": "$1",
+        "example": "1"
+      }
     }
+  },
+  "attachmentUnknownType": {
+    "message": "Tipo desconhecido — será importado como texto",
+    "description": "Badge shown next to an attachment with no recognized type — imported as plain text only if explicitly checked (code review 2026-06-10)"
+  },
+  "labelDateUnknown": {
+    "message": "(data desconhecida)",
+    "description": "Label displayed when the email has no parsable date (code review 2026-06-10)"
   }
 }

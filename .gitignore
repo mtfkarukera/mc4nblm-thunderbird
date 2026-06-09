@@ -37,3 +37,10 @@ cookies_copy.sqlite*
 node_modules/
 scratch/
 
+docs/
+
+# Outillage dev local (non publié — audit release 2026-06-10)
+package.json
+package-lock.json
+eslint.config.js
+.web-ext-ignore
