@@ -110,6 +110,10 @@ notebooklm-clipper-thunderbird/
 
 ## 📋 Changelog
 
+### v1.0.3 — Bug Fix & Asset Quality Release — Juin 2026
+* **Amélioration de la qualité des icônes** : Restructuration et rendu vectoriel de haute qualité pour les icônes `icon.png`, `icon@2x.png` et ajout de `icon-128.png` pour une netteté maximale dans le gestionnaire de modules de Thunderbird.
+* **Compatibilité des icônes** : Utilisation de formats PNG haute résolution dans `manifest.json` pour assurer un affichage parfait dans le Gestionnaire de modules complémentaires.
+
 ### v1.0.2 — Localization & Assets Release — Juin 2026
 * **Localisation complète** : Finalisation et correction des traductions pour l'allemand, l'espagnol, l'vietnamien, le japonais et le portugais (7 locales supportées).
 * **Ressources icônes** : Génération des icônes PNG carrées haute fidélité (`icon.png` et `icon@2x.png`) pour Thunderbird.
