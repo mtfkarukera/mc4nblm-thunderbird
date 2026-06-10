@@ -19,7 +19,7 @@
 
 let _activeAuthuserIndex = 0;
 let _csrfToken = null;  // SNlM0e — refetché avant chaque capture
-let _sessionId = null;  // FdrFJe
+// _sessionId (FdrFJe) : supprimé au sprint 2 (v1.0.5) — jamais consommé
 let _lastCapturePdfB64 = null;  // Dernier PDF généré (pour téléchargement local)
 let _lastCaptureMdText = null;  // Dernier MD généré (pour téléchargement local)
 let _lastCaptureTitle = null;   // Sujet brut du dernier email capturé (nom de téléchargement)
@@ -31,7 +31,6 @@ const STORAGE_KEYS = NtcUtils.STORAGE_KEYS;
 
 function clearAuthSession() {
   _csrfToken = null;
-  _sessionId = null;
   try {
     NtcAuth.stopCookieRotationSchedule();
   } catch (_e) {}
@@ -322,12 +321,17 @@ async function handleConnectAuth() {
     const { valid } = NtcAuth.validateCookies(cookieMap);
     if (!valid) { notifyUI({ status: 'error', code: 'AUTH_EXPIRED' }); return; }
 
+    // Sprint 2 (v1.0.5) : auth_ready UNIQUEMENT si le token CSRF est
+    // récupérable (compte avec accès NotebookLM effectif). Sinon, erreur
+    // immédiate — plus de faux état "prêt" qui n'échouerait qu'à la
+    // première capture (AGENTS.md §10).
     try {
       const tokens = await NtcAuth.fetchCSRFTokens(_activeAuthuserIndex);
       _csrfToken = tokens.csrfToken;
-      _sessionId = tokens.sessionId;
     } catch (e) {
-      NtcUtils.log('fetchCSRFTokens après auth :', e.message);
+      console.error('[NTC] fetchCSRFTokens après auth :', e.message);
+      notifyUI({ status: 'error', code: e.code === 'AUTH_EXPIRED' ? 'AUTH_EXPIRED' : 'UNKNOWN', detail: e.message });
+      return;
     }
 
     NtcAuth.startCookieRotationSchedule();
@@ -380,8 +384,7 @@ async function handleGetNotebooks() {
   // à la popup qui affiche le bon message (mode DEBUG : diag gérés par NtcRpc).
   const tokens = await NtcAuth.fetchCSRFTokens(_activeAuthuserIndex);
   _csrfToken = tokens.csrfToken;
-  _sessionId = tokens.sessionId;
-  NtcUtils.log('fetchCSRFTokens — csrfToken présent?', !!_csrfToken, 'sessionId présent?', !!_sessionId);
+  NtcUtils.log('fetchCSRFTokens — csrfToken présent?', !!_csrfToken);
 
   const result = await NtcRpc.listNotebooks(_csrfToken, _activeAuthuserIndex);
   NtcUtils.log('listNotebooks résultat :', result.notebooks.length, 'carnets');
@@ -389,15 +392,21 @@ async function handleGetNotebooks() {
 }
 
 async function handleCreateNotebook(message) {
+  // Sprint 2 (v1.0.5) : garde sur le titre — trimé, non vide, ≤ 100 caractères.
+  // (L'UI désactive déjà le bouton sur titre vide — défense en profondeur.)
+  const title = (message.title || '').trim();
+  if (!title || title.length > 100) {
+    const e = new Error('INVALID_TITLE'); e.code = 'INVALID_TITLE'; throw e;
+  }
+
   const cookieMap = await NtcAuth.collectGoogleCookies();
   const { valid } = NtcAuth.validateCookies(cookieMap);
   if (!valid) { const e = new Error('AUTH_EXPIRED'); e.code = 'AUTH_EXPIRED'; throw e; }
 
   const tokens = await NtcAuth.fetchCSRFTokens(_activeAuthuserIndex);
   _csrfToken = tokens.csrfToken;
-  _sessionId = tokens.sessionId;
 
-  return NtcRpc.createNotebook(_csrfToken, message.title, _activeAuthuserIndex);
+  return NtcRpc.createNotebook(_csrfToken, title, _activeAuthuserIndex);
 }
 
 // ─────────────────────────────────────────────
@@ -454,7 +463,6 @@ async function handleStartCapture(message) {
   try {
     const tokens = await NtcAuth.fetchCSRFTokens(_activeAuthuserIndex);
     _csrfToken = tokens.csrfToken;
-    _sessionId = tokens.sessionId;
   } catch (e) {
     if (e.code === 'AUTH_EXPIRED') {
       clearAuthSession();

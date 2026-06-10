@@ -330,9 +330,20 @@ function buildQueryString(rpcId, authuserIndex) {
 // UTILITAIRES
 // ─────────────────────────────────────────────
 
-function extractFirstString(data) {
-  if (typeof data === 'string') return data;
-  if (Array.isArray(data) && data.length > 0) return extractFirstString(data[0]);
+const _UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Recherche récursive du premier string au format UUID dans une structure
+ * imbriquée (secours pour l'extraction d'ID de carnet — hotfix 2026-06-11).
+ */
+function extractFirstUuid(data) {
+  if (typeof data === 'string') return _UUID_PATTERN.test(data) ? data : null;
+  if (Array.isArray(data)) {
+    for (const item of data) {
+      const found = extractFirstUuid(item);
+      if (found) return found;
+    }
+  }
   return null;
 }
 
@@ -368,7 +379,6 @@ async function batchExecute(rpcId, params, csrfToken, authuserIndex) {
 
   if (!resp.ok) {
     if (resp.status === 401 || resp.status === 403) {
-      await browser.storage.local.set({ [NtcUtils.STORAGE_KEYS.AUTH_READY]: false });
       const e = new Error('AUTH_EXPIRED'); e.code = 'AUTH_EXPIRED'; throw e;
     }
     throw new Error(`HTTP ${resp.status}`);
@@ -521,9 +531,25 @@ async function listNotebooks(csrfToken, authuserIndex) {
  * @returns {Promise<{ id: string, title: string }>}
  */
 async function createNotebook(csrfToken, title, authuserIndex) {
-  const params = [[title]];
+  // Payload canonique CCqFvf (hotfix 2026-06-11, recettage R8.2) :
+  //   [title, null, null, [2], [1]]
+  // Source de vérité : notebooklm-py build_create_notebook_params().
+  // L'ancien payload [[title]] provoquait un gRPC 3 (Invalid argument).
+  // ⚠️ Avec ce payload canonique, un gRPC 3 signifie désormais
+  //    « quota de carnets atteint » (CREATE_NOTEBOOK_QUOTA_RPC_CODE).
+  const params = [title, null, null, [2], [1]];
   const result = await batchExecute('CCqFvf', params, csrfToken, authuserIndex);
-  const id = extractFirstString(result);
+
+  // Réponse = ligne carnet : titre en [0], ID (UUID) en [2]
+  // (notebooklm-py Notebook.from_api_response). L'ancien extractFirstString
+  // retournait le TITRE — bug latent corrigé (hotfix 2026-06-11).
+  let id = null;
+  if (Array.isArray(result) && typeof result[2] === 'string' && _UUID_PATTERN.test(result[2])) {
+    id = result[2];
+  } else {
+    id = extractFirstUuid(result);  // secours si la structure se décale
+  }
+
   if (!id) { const e = new Error('API_CHANGED'); e.code = 'API_CHANGED'; throw e; }
   return { id, title };
 }

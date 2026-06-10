@@ -283,6 +283,23 @@ body {
   font-weight: 600;
 }
 
+/* ── Création de carnet inline (sprint 2 v1.0.5) ─────────────────────── */
+.create-status {
+  font-size: 11px;
+  margin: 2px 0 4px;
+  color: var(--c-text-muted);
+}
+
+.create-status.error {
+  color: var(--c-error, #e05252);
+}
+
+#create-notebook-row input:disabled,
+#create-notebook-row .btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 /* Entrée diagnostic (mode DEBUG) : visible, jamais sélectionnable */
 .notebook-item.diag {
   opacity: 0.6;

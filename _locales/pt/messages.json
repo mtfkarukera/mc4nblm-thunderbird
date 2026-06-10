@@ -196,5 +196,25 @@
   "labelDateUnknown": {
     "message": "(data desconhecida)",
     "description": "Label displayed when the email has no parsable date (code review 2026-06-10)"
+  },
+  "createNotebookPlaceholder": {
+    "message": "Nome do novo caderno…",
+    "description": "Placeholder of the inline notebook-creation input (sprint 2 v1.0.5)"
+  },
+  "btnCreateConfirm": {
+    "message": "Criar",
+    "description": "Tooltip of the confirm (✓) button in the inline creation row"
+  },
+  "btnCreateCancel": {
+    "message": "Cancelar",
+    "description": "Tooltip of the cancel (✕) button in the inline creation row"
+  },
+  "statusCreatingNotebook": {
+    "message": "Criando o caderno…",
+    "description": "Status text shown while the notebook is being created"
+  },
+  "errorCreateNotebook": {
+    "message": "Não foi possível criar o caderno. Tente novamente.",
+    "description": "Inline error shown when notebook creation fails"
   }
 }

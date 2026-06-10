@@ -33,7 +33,6 @@ let _currentFormat      = null;  // 'pdf' | 'md' | 'attachment'
 
 // Clés de storage : source unique dans NtcUtils (revue 2026-06-10)
 const STORAGE_KEYS = (typeof NtcUtils !== 'undefined' && NtcUtils.STORAGE_KEYS) || {
-  AUTH_READY: 'ntc_auth_ready',
   ACTIVE_AUTHUSER: 'ntc_active_authuser',
   LAST_NOTEBOOK: 'ntc_last_notebook_id',
 };
@@ -585,6 +584,125 @@ browser.runtime.onMessage.addListener((message) => {
 });
 
 // ─────────────────────────────────────────────
+// CRÉATION DE CARNET INLINE (sprint 2 v1.0.5 — spec §5.3.1)
+// ─────────────────────────────────────────────
+
+let _creatingNotebook = false;
+
+/** Met à jour l'état du bouton [✓] selon le contenu trimé de l'input. */
+function updateCreateConfirmState() {
+  const input = document.getElementById('create-notebook-name');
+  const btn   = document.getElementById('btn-create-confirm');
+  if (!input || !btn) return;
+  btn.disabled = _creatingNotebook || input.value.trim().length === 0;
+}
+
+/** Affiche/masque le message de statut sous la rangée de création. */
+function setCreateStatus(message, isError) {
+  const el = document.getElementById('create-notebook-status');
+  if (!el) return;
+  el.textContent = message || '';
+  el.classList.toggle('error', !!isError);
+  el.classList.toggle('hidden', !message);
+}
+
+/**
+ * Ouvre la rangée de création inline : masque la rangée de recherche,
+ * préremplit l'input avec le terme de recherche courant, focus + sélection.
+ */
+function openCreateNotebookRow() {
+  const searchRow = document.querySelector('.notebook-search-row:not(#create-notebook-row)');
+  const createRow = document.getElementById('create-notebook-row');
+  const input     = document.getElementById('create-notebook-name');
+  const search    = document.getElementById('notebook-search');
+  if (!createRow || !input) return;
+
+  if (searchRow) searchRow.classList.add('hidden');
+  createRow.classList.remove('hidden');
+  setCreateStatus(null);
+
+  // slice(0, 100) : maxlength HTML ne s'applique pas aux affectations JS (audit sprint 2)
+  input.value = (search ? search.value : '').trim().slice(0, 100);
+  updateCreateConfirmState();
+  input.focus();
+  input.select();
+}
+
+/** Ferme la rangée de création et réaffiche la recherche. Saisie non conservée. */
+function closeCreateNotebookRow() {
+  if (_creatingNotebook) return;  // pas d'annulation pendant l'appel réseau
+  const searchRow = document.querySelector('.notebook-search-row:not(#create-notebook-row)');
+  const createRow = document.getElementById('create-notebook-row');
+  if (createRow) createRow.classList.add('hidden');
+  if (searchRow) searchRow.classList.remove('hidden');
+  setCreateStatus(null);
+}
+
+/** Active/désactive les contrôles de la rangée pendant l'appel réseau. */
+function setCreateRowBusy(busy) {
+  _creatingNotebook = busy;
+  const input   = document.getElementById('create-notebook-name');
+  const confirm = document.getElementById('btn-create-confirm');
+  const cancel  = document.getElementById('btn-create-cancel');
+  if (input)   input.disabled   = busy;
+  if (cancel)  cancel.disabled  = busy;
+  if (confirm) confirm.disabled = busy || !input || input.value.trim().length === 0;
+}
+
+/**
+ * Crée le carnet : succès → carnet en tête de liste, sélectionné, recherche
+ * vidée ; échec → erreur inline i18n, saisie conservée ; AUTH_EXPIRED →
+ * écran de reconnexion. Plus jamais d'échec silencieux.
+ */
+async function submitCreateNotebook() {
+  const input = document.getElementById('create-notebook-name');
+  if (!input || _creatingNotebook) return;
+  const title = input.value.trim();
+  if (!title) return;
+
+  setCreateRowBusy(true);
+  setCreateStatus(t('statusCreatingNotebook'), false);
+
+  let resp;
+  try {
+    resp = await browser.runtime.sendMessage({ action: 'CREATE_NOTEBOOK', title });
+  } catch (err) {
+    setCreateRowBusy(false);
+    const { code, detail } = classifyError(err);
+    if (code === 'AUTH_EXPIRED') {
+      setCreateStatus(null);  // ne pas laisser "Création…" affiché (audit sprint 2)
+      showState('authRequired');
+      return;
+    }
+    console.error('[NTC-UI] Création carnet échouée :', err.message);
+    let msg = t('errorCreateNotebook');
+    if (detail) msg += ` (${detail})`;
+    setCreateStatus(msg, true);
+    input.focus();
+    return;
+  }
+
+  setCreateRowBusy(false);
+
+  if (!resp || !resp.id) {
+    setCreateStatus(t('errorCreateNotebook'), true);
+    input.focus();
+    return;
+  }
+
+  // Succès : carnet en tête de liste, sélectionné, recherche réinitialisée
+  _currentNotebookId = resp.id;
+  _notebooks.unshift({ id: resp.id, title });
+  _searchTerm = '';
+  const search = document.getElementById('notebook-search');
+  if (search) search.value = '';
+  renderNotebooks(_notebooks);
+  browser.storage.local.set({ [STORAGE_KEYS.LAST_NOTEBOOK]: resp.id });
+  input.value = '';
+  closeCreateNotebookRow();
+}
+
+// ─────────────────────────────────────────────
 // HANDLERS DE BOUTONS (LIENS ET EVENEMENTS)
 // ─────────────────────────────────────────────
 
@@ -618,20 +736,19 @@ function bindButtons() {
   // Import PJ sélectionnées
   safeBindClick('btn-import-attachments', startAttachmentCapture);
 
-  // Créer un carnet
-  safeBindClick('btn-create-notebook', async () => {
-    const name = window.prompt(t('btnCreateNotebook'));
-    if (!name) return;
-    try {
-      const resp = await browser.runtime.sendMessage({ action: 'CREATE_NOTEBOOK', title: name });
-      if (resp && resp.id) {
-        _currentNotebookId = resp.id;
-        _notebooks.unshift({ id: resp.id, title: name });
-        renderNotebooks(_notebooks);
-      }
-    } catch (_e) {
-      console.warn('[NTC] Création carnet échouée :', _e.message);
-    }
+  // Créer un carnet — UI inline (sprint 2 v1.0.5).
+  // ⚠️ window.prompt est INTERDIT : non supporté dans les popups TB
+  // (fenêtre détachée + échec silencieux — AGENTS.md §10).
+  safeBindClick('btn-create-notebook', openCreateNotebookRow);
+  safeBindClick('btn-create-confirm', submitCreateNotebook);
+  safeBindClick('btn-create-cancel', closeCreateNotebookRow);
+
+  const createInput = document.getElementById('create-notebook-name');
+  if (!createInput) throw new Error('Élément #create-notebook-name introuvable');
+  createInput.addEventListener('input', updateCreateConfirmState);
+  createInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); submitCreateNotebook(); }
+    if (e.key === 'Escape') { e.preventDefault(); closeCreateNotebookRow(); }
   });
 
   // Fast Research sur la liste de carnets (debounce 300ms)

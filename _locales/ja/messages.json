@@ -196,5 +196,25 @@
   "labelDateUnknown": {
     "message": "（日付不明）",
     "description": "Label displayed when the email has no parsable date (code review 2026-06-10)"
+  },
+  "createNotebookPlaceholder": {
+    "message": "新しいノートブックの名前…",
+    "description": "Placeholder of the inline notebook-creation input (sprint 2 v1.0.5)"
+  },
+  "btnCreateConfirm": {
+    "message": "作成",
+    "description": "Tooltip of the confirm (✓) button in the inline creation row"
+  },
+  "btnCreateCancel": {
+    "message": "キャンセル",
+    "description": "Tooltip of the cancel (✕) button in the inline creation row"
+  },
+  "statusCreatingNotebook": {
+    "message": "ノートブックを作成中…",
+    "description": "Status text shown while the notebook is being created"
+  },
+  "errorCreateNotebook": {
+    "message": "ノートブックを作成できませんでした。もう一度お試しください。",
+    "description": "Inline error shown when notebook creation fails"
   }
 }

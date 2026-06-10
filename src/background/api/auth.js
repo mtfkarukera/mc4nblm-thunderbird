@@ -50,29 +50,21 @@ async function collectGoogleCookies() {
 }
 
 /**
- * Construit le header Cookie string depuis la map de cookies.
- *
- * @param {Object} cookieMap
- * @returns {string}
- */
-function buildCookieString(cookieMap) {
-  return Object.entries(cookieMap)
-    .map(([k, v]) => `${k}=${v}`)
-    .join('; ');
-}
-
-/**
  * Valide la présence des cookies Tier 1 (bloquant) et Tier 2 (probabiliste).
  *
+ * Sprint 2 (v1.0.5) : retourne { valid } uniquement — `cookieString` et
+ * `buildCookieString()` supprimés (plus aucun consommateur depuis le retrait
+ * du header Cookie manuel en v1.0.4).
+ *
  * @param  {Object}  cookieMap - Map produite par collectGoogleCookies().
- * @returns {{ valid: boolean, cookieString: string }}
+ * @returns {{ valid: boolean }}
  */
 function validateCookies(cookieMap) {
   const missingTier1 = TIER1_COOKIES.filter(name => !cookieMap[name]);
 
   if (missingTier1.length > 0) {
     NtcUtils.log('Cookies Tier 1 manquants :', missingTier1);
-    return { valid: false, cookieString: '' };
+    return { valid: false };
   }
 
   const hasTier2 = cookieMap['OSID'] || (cookieMap['APISID'] && cookieMap['SAPISID']);
@@ -81,8 +73,7 @@ function validateCookies(cookieMap) {
     NtcUtils.log('Aucun cookie Tier 2 (OSID ou APISID+SAPISID). Session peut être instable.');
   }
 
-  const cookieString = buildCookieString(cookieMap);
-  return { valid: true, cookieString };
+  return { valid: true };
 }
 
 // ─────────────────────────────────────────────
@@ -90,12 +81,17 @@ function validateCookies(cookieMap) {
 // ─────────────────────────────────────────────
 
 /**
- * Fetche la page NotebookLM et extrait SNlM0e (CSRF) + FdrFJe (session ID).
+ * Fetche la page NotebookLM et extrait SNlM0e (token CSRF).
  * ⚠️ Doit être appelée AVANT chaque capture — ne jamais réutiliser un token mis en cache.
  *
+ * Sprint 2 (v1.0.5) : FdrFJe (session ID) n'est plus extrait — jamais consommé
+ * par aucun payload RPC. Regex documentée dans API-REFERENCE.md §CSRF si besoin futur.
+ * La clé storage AUTH_READY n'est plus écrite (jamais lue — GET_AUTH_STATUS
+ * recalcule depuis les cookies).
+ *
  * @param  {number} authuserIndex   - Index authuser actif (0..4).
- * @returns {Promise<{ csrfToken: string|null, sessionId: string|null }>}
- * @throws {Error} - Sur HTTP 401/403 (session expirée) ou erreur réseau.
+ * @returns {Promise<{ csrfToken: string }>}
+ * @throws {Error} - AUTH_EXPIRED (HTTP 401/403 ou SNlM0e introuvable), ou erreur réseau.
  */
 async function fetchCSRFTokens(authuserIndex) {
   const response = await fetch(`${NBLM_URL}?authuser=${authuserIndex}`, {
@@ -105,7 +101,6 @@ async function fetchCSRFTokens(authuserIndex) {
 
   if (!response.ok) {
     if (response.status === 401 || response.status === 403) {
-      await browser.storage.local.set({ [NtcUtils.STORAGE_KEYS.AUTH_READY]: false });
       const err = new Error('AUTH_EXPIRED');
       err.code = 'AUTH_EXPIRED';
       throw err;
@@ -116,22 +111,17 @@ async function fetchCSRFTokens(authuserIndex) {
   const html = await response.text();
 
   const snlMatch = html.match(/"SNlM0e":"([^"]+)"/);
-  const fdrMatch = html.match(/"FdrFJe":"([^"]+)"/);
 
   // Pas de token CSRF dans la page (page de consentement, compte non connecté
   // à NotebookLM, etc.) → session inutilisable : AUTH_EXPIRED explicite.
   // Ne JAMAIS retourner csrfToken: null silencieusement (revue 2026-06-10).
   if (!snlMatch) {
-    await browser.storage.local.set({ [NtcUtils.STORAGE_KEYS.AUTH_READY]: false });
     const err = new Error('AUTH_EXPIRED');
     err.code = 'AUTH_EXPIRED';
     throw err;
   }
 
-  return {
-    csrfToken: snlMatch[1],
-    sessionId: fdrMatch ? fdrMatch[1] : null,
-  };
+  return { csrfToken: snlMatch[1] };
 }
 
 // ─────────────────────────────────────────────
@@ -229,7 +219,6 @@ async function openAuthWebContentTab(onSuccess) {
       const tabToClose = _authTabId;
       cleanup();
       try { await browser.tabs.remove(tabToClose); } catch (_e) { /* déjà fermé */ }
-      await browser.storage.local.set({ [NtcUtils.STORAGE_KEYS.AUTH_READY]: true });
       onSuccess();
     }
   }

@@ -27,9 +27,10 @@ var NtcUtils = (function () {
   /**
    * Clés browser.storage.local — source unique partagée par background.js
    * ET popup.js. Ne jamais utiliser ces littéraux directement ailleurs.
+   * Sprint 2 (v1.0.5) : AUTH_READY supprimée — écrite mais jamais lue
+   * (GET_AUTH_STATUS recalcule l'état depuis les cookies à chaque ouverture).
    */
   const STORAGE_KEYS = {
-    AUTH_READY: 'ntc_auth_ready',
     ACTIVE_AUTHUSER: 'ntc_active_authuser',
     LAST_NOTEBOOK: 'ntc_last_notebook_id',
   };

@@ -196,5 +196,25 @@
   "labelDateUnknown": {
     "message": "(không rõ ngày)",
     "description": "Label displayed when the email has no parsable date (code review 2026-06-10)"
+  },
+  "createNotebookPlaceholder": {
+    "message": "Tên sổ tay mới…",
+    "description": "Placeholder of the inline notebook-creation input (sprint 2 v1.0.5)"
+  },
+  "btnCreateConfirm": {
+    "message": "Tạo",
+    "description": "Tooltip of the confirm (✓) button in the inline creation row"
+  },
+  "btnCreateCancel": {
+    "message": "Hủy",
+    "description": "Tooltip of the cancel (✕) button in the inline creation row"
+  },
+  "statusCreatingNotebook": {
+    "message": "Đang tạo sổ tay…",
+    "description": "Status text shown while the notebook is being created"
+  },
+  "errorCreateNotebook": {
+    "message": "Không thể tạo sổ tay. Vui lòng thử lại.",
+    "description": "Inline error shown when notebook creation fails"
   }
 }

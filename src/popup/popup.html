@@ -62,6 +62,16 @@
                class="input-search" autocomplete="off" />
         <button id="btn-create-notebook" class="btn btn-icon" title="" data-i18n-title="btnCreateNotebook">+</button>
       </div>
+      <!-- Création de carnet inline — sprint 2 v1.0.5 (spec §5.3.1).
+           ⚠️ window.prompt est interdit dans les popups TB (AGENTS.md §10). -->
+      <div id="create-notebook-row" class="notebook-search-row hidden">
+        <input id="create-notebook-name" type="text" maxlength="100"
+               data-i18n-placeholder="createNotebookPlaceholder"
+               class="input-search" autocomplete="off" />
+        <button id="btn-create-confirm" class="btn btn-icon" title="" data-i18n-title="btnCreateConfirm" disabled>✓</button>
+        <button id="btn-create-cancel" class="btn btn-icon" title="" data-i18n-title="btnCreateCancel">✕</button>
+      </div>
+      <p id="create-notebook-status" class="create-status hidden" aria-live="polite"></p>
       <ul id="notebook-list" class="notebook-list" role="listbox" aria-label="Notebooks"></ul>
     </div>
 

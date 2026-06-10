@@ -196,5 +196,25 @@
   "labelDateUnknown": {
     "message": "(unknown date)",
     "description": "Label displayed when the email has no parsable date (code review 2026-06-10)"
+  },
+  "createNotebookPlaceholder": {
+    "message": "Name of the new notebook…",
+    "description": "Placeholder of the inline notebook-creation input (sprint 2 v1.0.5)"
+  },
+  "btnCreateConfirm": {
+    "message": "Create",
+    "description": "Tooltip of the confirm (✓) button in the inline creation row"
+  },
+  "btnCreateCancel": {
+    "message": "Cancel",
+    "description": "Tooltip of the cancel (✕) button in the inline creation row"
+  },
+  "statusCreatingNotebook": {
+    "message": "Creating notebook…",
+    "description": "Status text shown while the notebook is being created"
+  },
+  "errorCreateNotebook": {
+    "message": "Could not create the notebook. Please try again.",
+    "description": "Inline error shown when notebook creation fails"
   }
 }
