@@ -1,6 +1,6 @@
 # 📎 Magic Clipper for NotebookLM
 
-![version](https://img.shields.io/badge/version-1.0.5-blue) ![platform](https://img.shields.io/badge/Thunderbird-115%2B-0a84ff)
+![version](https://img.shields.io/badge/version-1.0.6-blue) ![platform](https://img.shields.io/badge/Thunderbird-115%2B-0a84ff)
 
 **Magic Clipper for NotebookLM** est une MailExtension Thunderbird (Manifest V2) qui permet d'importer le contenu d'un email (corps, pièces jointes) directement dans un carnet **Google NotebookLM** en un seul clic depuis le panneau de lecture.
 
@@ -75,7 +75,7 @@ Avant d'utiliser l'extension pour la première fois, **votre compte Google** doi
    ```bash
    npx web-ext build --source-dir .
    ```
-2. Renommez l'archive produite en `.xpi` (ex: `notebooklm-clipper-tb-1.0.5.xpi`).
+2. Renommez l'archive produite en `.xpi` (ex: `notebooklm-clipper-tb-1.0.6.xpi`).
 3. Dans Thunderbird ➡️ **Gestionnaire de modules complémentaires** ➡️ cliquez sur l'icône engrenage ⚙️ ➡️ **Installer un module depuis un fichier...** ➡️ Sélectionnez votre fichier `.xpi`.
 
 ---
@@ -110,6 +110,9 @@ notebooklm-clipper-thunderbird/
 ---
 
 ## 📋 Changelog
+
+### v1.0.6 — Message Tabs & Windows Fix — Juin 2026
+* **Fonctionne désormais partout** : l'extension échouait avec « Ouvrez un email… » quand le message était ouvert dans son propre onglet ou sa propre fenêtre (double-clic). La détection du message affiché couvre maintenant les trois contextes d'affichage de Thunderbird : fenêtre principale (3-pane), onglet message et fenêtre autonome.
 
 ### v1.0.5 — Notebook Creation Fix — Juin 2026
 * **Création de carnet réparée** : le bouton `+` ouvrait une fenêtre détachée (`window.prompt`, non supporté dans les popups Thunderbird) qui échouait silencieusement. Remplacement par une saisie intégrée à la popup : le nom est prérempli avec le terme du champ de recherche, Entrée crée, Échap annule.

@@ -40,6 +40,34 @@ function clearAuthSession() {
 // ENREGISTREMENT DU MESSAGE DISPLAY SCRIPT
 // ─────────────────────────────────────────────
 
+// Fichiers du bridge PDF — ordre d'injection STRICT (AGENTS.md §4.5)
+const MESSAGE_SCRIPTS = [
+  'lib/jspdf.umd.min.js',
+  'src/content/email_pdf_generator.js',
+  'src/content/email_bridge.js'
+];
+
+/**
+ * Injection one-shot du bridge dans un onglet message (hotfix recettage R9.3).
+ *
+ * ⚠️ Les scripts ENREGISTRÉS (registerScripts/messageDisplayScripts) ne
+ * s'appliquent qu'aux messages affichés APRÈS l'enregistrement (doc officielle
+ * scripting.messageDisplay). Un onglet/fenêtre message déjà ouvert ou restauré
+ * au démarrage n'a donc PAS le bridge → injection manuelle requise.
+ * `scripting.executeScript` : TB 102+, permissions scripting + messagesRead
+ * (déjà déclarées) — messagesModify inutile.
+ *
+ * Les sentinelles (__ntc_email_bridge) rendent la ré-injection inoffensive.
+ *
+ * @param {number} tabId
+ */
+async function injectMessageScripts(tabId) {
+  await messenger.scripting.executeScript({
+    target: { tabId },
+    files: MESSAGE_SCRIPTS,
+  });
+}
+
 (async () => {
   // Enregistrement du MessageDisplayScript — API TB 128+ (messenger.scripting.messageDisplay)
   try {
@@ -49,23 +77,16 @@ function clearAuthSession() {
       // TB 128+ — API moderne
       await messenger.scripting.messageDisplay.registerScripts([{
         id: 'ntc-email-scripts',
-        js: [
-          'lib/jspdf.umd.min.js',
-          'src/content/email_pdf_generator.js',
-          'src/content/email_bridge.js'
-        ],
+        js: MESSAGE_SCRIPTS,
         runAt: 'document_idle',
       }]);
       NtcUtils.log('Scripts enregistrés via scripting.messageDisplay \u2713');
     } else if (messenger.messageDisplayScripts &&
       typeof messenger.messageDisplayScripts.register === 'function') {
-      // TB 115-127 — API legacy
+      // TB 115-127 — API legacy (requiert messagesModify, non déclarée :
+      // peut échouer — le fallback d'injection à la demande prend le relais)
       await messenger.messageDisplayScripts.register({
-        js: [
-          { file: 'lib/jspdf.umd.min.js' },
-          { file: 'src/content/email_pdf_generator.js' },
-          { file: 'src/content/email_bridge.js' }
-        ]
+        js: MESSAGE_SCRIPTS.map(file => ({ file }))
       });
       NtcUtils.log('Scripts enregistrés via messageDisplayScripts (legacy) \u2713');
     } else {
@@ -73,6 +94,30 @@ function clearAuthSession() {
     }
   } catch (_e) {
     console.error('[NTC] Impossible d\'enregistrer les messageDisplayScripts :', _e.message);
+  }
+
+  // Rattrapage au démarrage (hotfix R9.3) : les onglets/fenêtres message DÉJÀ
+  // ouverts (ex. restaurés) n'ont pas reçu les scripts enregistrés — les
+  // scripts enregistrés ne s'appliquent qu'aux messages affichés APRÈS
+  // l'enregistrement (pattern officiel doc scripting.messageDisplay).
+  try {
+    const openTabs = await messenger.tabs.query({});
+    for (const tab of openTabs) {
+      if (!['mail', 'messageDisplay'].includes(tab.type)) continue;
+      try {
+        if (tab.type === 'mail') {
+          // Un onglet 3-pane peut afficher 0 ou plusieurs messages
+          const displayed = await messenger.messageDisplay.getDisplayedMessage(tab.id);
+          if (!displayed) continue;
+        }
+        await injectMessageScripts(tab.id);
+        NtcUtils.log('Rattrapage bridge → onglet', tab.id, `(${tab.type})`);
+      } catch (_tabErr) {
+        // Onglet sans document de message accessible — ignorer
+      }
+    }
+  } catch (err) {
+    console.error('[NTC] Rattrapage des onglets message échoué :', err.message);
   }
 
   // Restaurer le compte actif depuis le storage et démarrer la rotation si déjà connecté
@@ -115,29 +160,36 @@ function notifyUI(payload) {
 // ─────────────────────────────────────────────
 
 /**
- * Récupère le mailTab actif et l'en-tête du message affiché.
+ * Récupère l'onglet actif affichant un message et l'en-tête de ce message.
  *
- * @returns {Promise<{ mailTab: object, header: object }>}
- * @throws  {Error} code NO_EMAIL_DISPLAYED si aucun email n'est sélectionné.
+ * Sprint 3 (v1.0.6) : utilise `messenger.tabs.query()` (et plus
+ * `mailTabs.query()`, qui ne retourne QUE les onglets 3-pane — un email
+ * ouvert dans son propre onglet ou sa propre fenêtre déclenchait un faux
+ * NO_EMAIL_DISPLAYED, constat terrain 2026-06-11).
+ * `messageDisplay.getDisplayedMessage(tabId)` couvre les trois contextes :
+ * onglet 3-pane, onglet message, fenêtre message autonome.
+ *
+ * @returns {Promise<{ tab: object, header: object }>}
+ * @throws  {Error} code NO_EMAIL_DISPLAYED si l'onglet actif n'affiche pas d'email.
  */
-async function getActiveMailTabAndHeader() {
-  const mailTabs = await messenger.mailTabs.query({ active: true, currentWindow: true });
-  const mailTab = mailTabs[0];
+async function getActiveMessageTabAndHeader() {
+  const tabs = await messenger.tabs.query({ active: true, currentWindow: true });
+  const tab = tabs[0];
 
-  if (!mailTab) {
+  if (!tab) {
     const err = new Error('NO_EMAIL_DISPLAYED');
     err.code = 'NO_EMAIL_DISPLAYED';
     throw err;
   }
 
-  const header = await messenger.messageDisplay.getDisplayedMessage(mailTab.id);
+  const header = await messenger.messageDisplay.getDisplayedMessage(tab.id);
   if (!header) {
     const err = new Error('NO_EMAIL_DISPLAYED');
     err.code = 'NO_EMAIL_DISPLAYED';
     throw err;
   }
 
-  return { mailTab, header };
+  return { tab, header };
 }
 
 /**
@@ -345,7 +397,7 @@ async function handleConnectAuth() {
 // ─────────────────────────────────────────────
 
 async function handleGetActiveEmailMeta() {
-  const { header } = await getActiveMailTabAndHeader();
+  const { header } = await getActiveMessageTabAndHeader();
   const grounding = buildGrounding(header);
 
   const fullMessage = await messenger.messages.getFull(header.id);
@@ -499,30 +551,44 @@ async function handlePdfCapture(message) {
   }
   notifyUI({ status: 'capturing', statusKey: 'statusCapturing' });
 
-  let mailTab, header;
+  let tab, header;
   try {
-    const active = await getActiveMailTabAndHeader();
-    mailTab = active.mailTab;
+    const active = await getActiveMessageTabAndHeader();
+    tab = active.tab;
     header = active.header;
   } catch (err) {
     notifyUI({ status: 'error', code: err.code || 'UNKNOWN', detail: err.message });
     return;
   }
-  // 1. Les scripts sont déjà pré-enregistrés au démarrage, rien à injecter ici.
+  // 1. Vérifier que le bridge est joignable — avec FALLBACK d'injection à la
+  //    demande (hotfix R9.3) : les scripts pré-enregistrés ne couvrent que les
+  //    messages affichés APRÈS l'enregistrement ; un onglet message déjà
+  //    ouvert/restauré n'a pas le bridge → on l'injecte puis on re-ping.
   NtcUtils.log('Capture PDF en cours, vérification du bridge...');
-  // 2. Vérifier que le bridge est opérationnel et prêt
+
+  async function pingBridge() {
+    return browser.tabs.sendMessage(tab.id, { action: 'PING_BRIDGE' });
+  }
+
+  let checkResult = null;
   try {
-    const checkResult = await browser.tabs.sendMessage(mailTab.id, {
-      action: 'PING_BRIDGE'
-    });
-    if (!checkResult || !checkResult.pdfReady) {
-      console.error('[NTC-BG] Le générateur PDF n\'est pas accessible après injection. Réponse:', JSON.stringify(checkResult));
-      notifyUI({ status: 'error', code: 'INJECTION_FAILED', detail: 'pdfReady false après injection' });
+    checkResult = await pingBridge();
+  } catch (_pingErr) {
+    // Bridge absent (« Receiving end does not exist ») → injection à la demande
+    NtcUtils.log('Bridge absent dans l\'onglet', tab.id, '— injection à la demande');
+    try {
+      await injectMessageScripts(tab.id);
+      checkResult = await pingBridge();
+    } catch (injectErr) {
+      console.error('[NTC-BG] Injection à la demande échouée :', injectErr.message);
+      notifyUI({ status: 'error', code: 'INJECTION_FAILED', detail: injectErr.message });
       return;
     }
-  } catch (pingErr) {
-    console.error('[NTC-BG] Impossible de contacter le bridge après injection :', pingErr.message);
-    notifyUI({ status: 'error', code: 'INJECTION_FAILED', detail: pingErr.message });
+  }
+
+  if (!checkResult || !checkResult.pdfReady) {
+    console.error('[NTC-BG] Générateur PDF inaccessible après injection. Réponse:', JSON.stringify(checkResult));
+    notifyUI({ status: 'error', code: 'INJECTION_FAILED', detail: 'pdfReady false après injection' });
     return;
   }
 
@@ -533,7 +599,7 @@ async function handlePdfCapture(message) {
       _pendingPdfResolve = resolve;
       _pendingPdfReject = reject;
 
-      browser.tabs.sendMessage(mailTab.id, {
+      browser.tabs.sendMessage(tab.id, {
         action: 'CAPTURE_EMAIL_PDF',
         grounding: buildGrounding(header),
         intentNote: message.intentNote
@@ -607,7 +673,7 @@ async function handleMdCapture(message) {
 
   let header;
   try {
-    const active = await getActiveMailTabAndHeader();
+    const active = await getActiveMessageTabAndHeader();
     header = active.header;
   } catch (err) {
     notifyUI({ status: 'error', code: err.code || 'UNKNOWN', detail: err.message });
