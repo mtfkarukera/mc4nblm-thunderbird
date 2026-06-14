@@ -102,6 +102,9 @@ function setImportButtonsDisabled(disabled) {
  * Doit être appelée une seule fois au chargement.
  */
 function applyI18n() {
+  // Langue du document dynamique (P4.7)
+  document.documentElement.lang = browser.i18n.getUILanguage() || 'en';
+
   // Contenu textuel
   document.querySelectorAll('[data-i18n]').forEach(el => {
     const key = el.getAttribute('data-i18n');
@@ -835,7 +838,7 @@ function bindButtons() {
   safeBindClick('btn-new-import', loadEmailMeta);
 
   // Retour depuis erreur
-  safeBindClick('btn-back', () => showState('ready'));
+  safeBindClick('btn-back', loadEmailMeta);
 
   // Reconnexion après session expirée
   safeBindClick('btn-reconnect', () => {

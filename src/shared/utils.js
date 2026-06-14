@@ -106,6 +106,10 @@ var NtcUtils = (function () {
     let sanitized = name.replace(/[?*:|<>/\\]/g, '_');
     // Évite les underscores multiples
     sanitized = sanitized.replace(/_+/g, '_');
+    // Troncature à 200 caractères (P4.4)
+    if (sanitized.length > 200) {
+      sanitized = sanitized.slice(0, 200);
+    }
     return sanitized.trim();
   }
 

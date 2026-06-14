@@ -347,6 +347,67 @@ function extractFirstUuid(data) {
   return null;
 }
 
+/**
+ * Effectue une requête fetch avec retry sur HTTP 429 et backoff exponentiel (P4.1).
+ */
+async function fetchWithRetry(url, options, maxRetries = 3) {
+  let attempt = 0;
+  while (true) {
+    if (options.signal && options.signal.aborted) {
+      throw NtcUtils.ntcError('TIMEOUT', 'TIMEOUT');
+    }
+
+    let resp;
+    try {
+      resp = await fetch(url, options);
+    } catch (err) {
+      if (err.name === 'AbortError') {
+        throw NtcUtils.ntcError('TIMEOUT', 'TIMEOUT');
+      }
+      throw err;
+    }
+
+    if (resp.status === 429 && attempt < maxRetries) {
+      attempt++;
+      let delayMs = Math.pow(2, attempt) * 1000 + Math.random() * 100;
+
+      const retryAfter = resp.headers.get('Retry-After');
+      if (retryAfter) {
+        if (/^\d+$/.test(retryAfter)) {
+          delayMs = parseInt(retryAfter, 10) * 1000;
+        } else {
+          const date = Date.parse(retryAfter);
+          if (!isNaN(date)) {
+            delayMs = Math.max(0, date - Date.now());
+          }
+        }
+      }
+
+      NtcUtils.log(`[RPC] HTTP 429 reçu. Retry ${attempt}/${maxRetries} dans ${delayMs}ms.`);
+
+      await new Promise((resolve, reject) => {
+        const timerId = setTimeout(() => {
+          if (options.signal) options.signal.removeEventListener('abort', abortHandler);
+          resolve();
+        }, delayMs);
+
+        function abortHandler() {
+          clearTimeout(timerId);
+          reject(NtcUtils.ntcError('TIMEOUT', 'TIMEOUT'));
+        }
+
+        if (options.signal) {
+          options.signal.addEventListener('abort', abortHandler);
+        }
+      });
+
+      continue;
+    }
+
+    return resp;
+  }
+}
+
 // ─────────────────────────────────────────────
 // REQUÊTE GÉNÉRIQUE batchexecute
 // ─────────────────────────────────────────────
@@ -369,7 +430,7 @@ async function batchExecute(rpcId, params, csrfToken, authuserIndex) {
 
   let resp;
   try {
-    resp = await fetch(url, {
+    resp = await fetchWithRetry(url, {
       method: 'POST',
       credentials: 'include',
       headers: {
@@ -384,7 +445,7 @@ async function batchExecute(rpcId, params, csrfToken, authuserIndex) {
     clearTimeout(timeoutId);
   } catch (fetchErr) {
     clearTimeout(timeoutId);
-    if (fetchErr.name === 'AbortError') {
+    if (fetchErr.name === 'AbortError' || fetchErr.code === 'TIMEOUT') {
       throw NtcUtils.ntcError('TIMEOUT', 'TIMEOUT');
     }
     throw fetchErr;
@@ -625,7 +686,7 @@ async function uploadFileSource(csrfToken, fileBlob, filename, notebookId, authu
 
   let startResp;
   try {
-    startResp = await fetch(
+    startResp = await fetchWithRetry(
       `https://notebooklm.google.com/upload/_/?authuser=${authuserIndex}`,
       {
         method: 'POST',
@@ -652,7 +713,7 @@ async function uploadFileSource(csrfToken, fileBlob, filename, notebookId, authu
     clearTimeout(startTimeoutId);
   } catch (startErr) {
     clearTimeout(startTimeoutId);
-    if (startErr.name === 'AbortError') {
+    if (startErr.name === 'AbortError' || startErr.code === 'TIMEOUT') {
       throw NtcUtils.ntcError('TIMEOUT', 'TIMEOUT');
     }
     throw startErr;
@@ -685,7 +746,7 @@ async function uploadFileSource(csrfToken, fileBlob, filename, notebookId, authu
 
   let finalizeResp;
   try {
-    finalizeResp = await fetch(uploadUrl, {
+    finalizeResp = await fetchWithRetry(uploadUrl, {
       method: 'POST',
       credentials: 'include',
       headers: {
@@ -703,7 +764,7 @@ async function uploadFileSource(csrfToken, fileBlob, filename, notebookId, authu
     clearTimeout(finalizeTimeoutId);
   } catch (finErr) {
     clearTimeout(finalizeTimeoutId);
-    if (finErr.name === 'AbortError') {
+    if (finErr.name === 'AbortError' || finErr.code === 'TIMEOUT') {
       throw NtcUtils.ntcError('TIMEOUT', 'TIMEOUT');
     }
     throw finErr;

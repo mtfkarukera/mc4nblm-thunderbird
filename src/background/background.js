@@ -321,8 +321,12 @@ function buildGrounding(header) {
  * @param  {{ html: string, text: string }} acc - Accumulateur.
  * @returns {{ html: string, text: string }}
  */
-function extractEmailBody(parts, acc) {
+function extractEmailBody(parts, acc, depth = 0) {
   const result = acc || { html: '', text: '' };
+  if (depth > 20) {
+    console.warn('[NTC-BG] Limite de profondeur de 20 atteinte dans extractEmailBody');
+    return result;
+  }
   if (!parts || !Array.isArray(parts)) return result;
 
   for (const part of parts) {
@@ -332,7 +336,7 @@ function extractEmailBody(parts, acc) {
     if (part.contentType === 'text/plain') {
       result.text = (result.text ? result.text + '\n' : '') + (part.body || '');
     }
-    if (part.parts) extractEmailBody(part.parts, result);
+    if (part.parts) extractEmailBody(part.parts, result, depth + 1);
   }
   return result;
 }
@@ -610,14 +614,16 @@ async function handlePdfCapture(message) {
   }
 
   // 3. Lancer la capture via message
+  const captureId = crypto.randomUUID();
   let captureResult;
   try {
     captureResult = await new Promise((resolve, reject) => {
-      _pendingPdfResolve = resolve;
-      _pendingPdfReject = reject;
+      _pendingPdfResolve = { resolve, captureId };
+      _pendingPdfReject = { reject, captureId };
 
       browser.tabs.sendMessage(tab.id, {
         action: 'CAPTURE_EMAIL_PDF',
+        captureId,
         grounding: buildGrounding(header),
         intentNote: message.intentNote,
         labels: {
@@ -636,7 +642,7 @@ async function handlePdfCapture(message) {
 
       // Timeout de sécurité (30s)
       setTimeout(() => {
-        if (_pendingPdfResolve === resolve) {
+        if (_pendingPdfResolve && _pendingPdfResolve.captureId === captureId) {
           _pendingPdfResolve = null;
           _pendingPdfReject = null;
           const err = NtcUtils.ntcError('TIMEOUT', 'TIMEOUT');
@@ -863,22 +869,27 @@ async function handleAttachmentCapture(message) {
 // ─────────────────────────────────────────────
 
 function handlePdfReady(message) {
-  if (_pendingPdfResolve) {
+  if (_pendingPdfResolve && _pendingPdfResolve.captureId === message.captureId) {
     _lastCapturePdfB64 = message.pdfBase64;
-    _pendingPdfResolve({ pdfBase64: message.pdfBase64, title: message.title });
+    _pendingPdfResolve.resolve({ pdfBase64: message.pdfBase64, title: message.title });
     _pendingPdfResolve = null;
     _pendingPdfReject = null;
+  } else {
+    NtcUtils.log('[NTC-BG] PDF_READY ignoré : captureId invalide ou expiré');
   }
 }
 
 function handleCaptureError(message) {
-  if (_pendingPdfReject) {
+  if (_pendingPdfReject && _pendingPdfReject.captureId === message.captureId) {
     const err = NtcUtils.ntcError(message.code || 'UNKNOWN', message.detail || browser.i18n.getMessage('errorCaptureFailed') || 'Capture failed');
-    _pendingPdfReject(err);
+    _pendingPdfReject.reject(err);
     _pendingPdfResolve = null;
     _pendingPdfReject = null;
   } else {
-    notifyUI({ status: 'error', code: message.code || 'UNKNOWN', detail: message.detail });
+    NtcUtils.log('[NTC-BG] CAPTURE_ERROR ignorée : captureId invalide ou expiré');
+    if (!_pendingPdfReject) {
+      notifyUI({ status: 'error', code: message.code || 'UNKNOWN', detail: message.detail });
+    }
   }
 }
 

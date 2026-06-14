@@ -34,6 +34,9 @@ window.__ntc_generate_pdf = function (grounding, intentNote, labels) {
       if (wordCount > 500000) {
         throw new Error("L'email dépasse la limite de 500 000 mots.");
       }
+      if (wordCount > 50000) {
+        console.warn("[NTC-PDF] Avertissement : le courriel est très volumineux (> 50 000 mots). Le traitement du PDF peut prendre du temps ou dépasser les limites de mémoire.");
+      }
 
       // 2. Initialisation du document PDF
       const doc = new jsPDFClass({
@@ -282,7 +285,12 @@ window.__ntc_generate_pdf = function (grounding, intentNote, labels) {
       y += 25;
 
       // 5. Parcours récursif du DOM de l'email
-      function walk(node) {
+      function walk(node, depth = 0) {
+        if (depth > 200) {
+          console.warn("[NTC-PDF] Limite de profondeur DOM de 200 atteinte, arrêt de la traversée.");
+          return;
+        }
+
         if (node.nodeType === Node.TEXT_NODE) {
           const text = node.textContent.trim().replace(/\s+/g, ' ');
           if (text) {
@@ -310,7 +318,7 @@ window.__ntc_generate_pdf = function (grounding, intentNote, labels) {
           } else if (tag === 'table') {
             if (isLayoutTable(node)) {
               for (const child of node.childNodes) {
-                walk(child);
+                walk(child, depth + 1);
               }
             } else {
               renderTable(node);
@@ -319,7 +327,7 @@ window.__ntc_generate_pdf = function (grounding, intentNote, labels) {
             renderImage(node);
           } else {
             for (const child of node.childNodes) {
-              walk(child);
+              walk(child, depth + 1);
             }
           }
         }
@@ -327,7 +335,7 @@ window.__ntc_generate_pdf = function (grounding, intentNote, labels) {
 
       // Démarrer la traversée du document.body
       for (const child of document.body.childNodes) {
-        walk(child);
+        walk(child, 0);
       }
 
       // 6. Finalisation et retour

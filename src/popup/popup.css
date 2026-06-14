@@ -19,11 +19,18 @@
   --c-primary-dark:  #4299e1;
   --c-primary-glow:  rgba(99, 179, 237, 0.25);
   --c-primary-text:  #0f1117;
+  
   --c-success:       #68d391;      /* Vert */
   --c-success-glow:  rgba(104, 211, 145, 0.20);
+  --c-success-bg:    rgba(104, 211, 145, 0.08);
+  
   --c-error:         #fc8181;      /* Rouge doux */
   --c-error-glow:    rgba(252, 129, 129, 0.20);
+  --c-error-bg:      rgba(252, 129, 129, 0.08);
+  
   --c-warning:       #f6ad55;
+  --c-warning-glow:  rgba(246, 173, 85, 0.30);
+  --c-warning-bg:    rgba(246, 173, 85, 0.10);
 
   --c-text:          #e2e8f0;
   --c-text-secondary: #94a3b8;
@@ -65,6 +72,18 @@
     --c-text:           #0f172a;
     --c-text-secondary: #475569;
     --c-text-muted:     #94a3b8;
+    
+    /* Couleurs de statut plus sombres pour meilleur contraste sur fond clair (P4.6) */
+    --c-success:        #2f855a;      /* Vert forêt */
+    --c-success-glow:   rgba(47, 133, 90, 0.20);
+    --c-success-bg:     rgba(47, 133, 90, 0.08);
+    --c-error:          #c53030;      /* Rouge brique */
+    --c-error-glow:     rgba(197, 48, 48, 0.20);
+    --c-error-bg:       rgba(197, 48, 48, 0.08);
+    --c-warning:        #c05621;      /* Orange foncé */
+    --c-warning-glow:   rgba(192, 86, 33, 0.30);
+    --c-warning-bg:     rgba(192, 86, 33, 0.08);
+
     --shadow-glow:      0 0 15px rgba(49, 130, 206, 0.10);
     --shadow-card:      0 4px 24px rgba(0, 0, 0, 0.08);
   }
@@ -526,13 +545,13 @@ body {
   width: 52px;
   height: 52px;
   border-radius: 50%;
-  background: rgba(104, 211, 145, 0.08);
-  border: 1.5px solid rgba(104, 211, 145, 0.3);
+  background: var(--c-success-bg);
+  border: 1.5px solid var(--c-success-glow);
   display: flex;
   align-items: center;
   justify-content: center;
   margin: 0 auto var(--sp-sm) auto;
-  box-shadow: 0 0 20px rgba(104, 211, 145, 0.15);
+  box-shadow: 0 0 20px var(--c-success-glow);
   animation: popIn 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
@@ -547,13 +566,13 @@ body {
   width: 52px;
   height: 52px;
   border-radius: 50%;
-  background: rgba(252, 129, 129, 0.08);
-  border: 1.5px solid rgba(252, 129, 129, 0.3);
+  background: var(--c-error-bg);
+  border: 1.5px solid var(--c-error-glow);
   display: flex;
   align-items: center;
   justify-content: center;
   margin: 0 auto var(--sp-sm) auto;
-  box-shadow: 0 0 20px rgba(252, 129, 129, 0.15);
+  box-shadow: 0 0 20px var(--c-error-glow);
   animation: popIn 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
@@ -608,8 +627,8 @@ body {
 
 /* ── Warnings (import partiel PJ) ───────────────────────────────────── */
 .warnings {
-  background: rgba(246, 173, 85, 0.10);
-  border: 1px solid rgba(246, 173, 85, 0.30);
+  background: var(--c-warning-bg);
+  border: 1px solid var(--c-warning-glow);
   border-radius: var(--radius-sm);
   padding: var(--sp-sm) var(--sp-md);
   font-size: 12px;

@@ -33,6 +33,7 @@ if (window.__ntc_email_bridge) {
     if (typeof window.__ntc_generate_pdf !== 'function') {
       browser.runtime.sendMessage({
         action: 'CAPTURE_ERROR',
+        captureId: message.captureId,
         code:   'INJECTION_FAILED',
         detail: 'email_pdf_generator.js non injecté (jspdf: ' +
                 (typeof window.jspdf !== 'undefined' ? 'OK' : 'ABSENT') + ')'
@@ -45,6 +46,7 @@ if (window.__ntc_email_bridge) {
       .then(pdfBase64 => {
         browser.runtime.sendMessage({
           action:    'PDF_READY',
+          captureId: message.captureId,
           pdfBase64,
           title:     message.grounding ? message.grounding.subject : 'email',
         });
@@ -52,6 +54,7 @@ if (window.__ntc_email_bridge) {
       .catch(err => {
         browser.runtime.sendMessage({
           action: 'CAPTURE_ERROR',
+          captureId: message.captureId,
           code:   'INJECTION_FAILED',
           detail: err.message,
         });

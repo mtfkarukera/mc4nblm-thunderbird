@@ -1,6 +1,6 @@
 # 📎 Magic Clipper for NotebookLM
 
-![version](https://img.shields.io/badge/version-1.0.6-blue) ![platform](https://img.shields.io/badge/Thunderbird-115%2B-0a84ff)
+![version](https://img.shields.io/badge/version-1.4.0-blue) ![platform](https://img.shields.io/badge/Thunderbird-115%2B-0a84ff)
 
 **Magic Clipper for NotebookLM** est une MailExtension Thunderbird (Manifest V2) qui permet d'importer le contenu d'un email (corps, pièces jointes) directement dans un carnet **Google NotebookLM** en un seul clic depuis le panneau de lecture.
 
@@ -75,7 +75,7 @@ Avant d'utiliser l'extension pour la première fois, **votre compte Google** doi
    ```bash
    npx web-ext build --source-dir .
    ```
-2. Renommez l'archive produite en `.xpi` (ex: `notebooklm-clipper-tb-1.0.6.xpi`).
+2. Renommez l'archive produite en `.xpi` (ex: `notebooklm-clipper-tb-1.4.0.xpi`).
 3. Dans Thunderbird ➡️ **Gestionnaire de modules complémentaires** ➡️ cliquez sur l'icône engrenage ⚙️ ➡️ **Installer un module depuis un fichier...** ➡️ Sélectionnez votre fichier `.xpi`.
 
 ---
