@@ -385,7 +385,7 @@ async function batchExecute(rpcId, params, csrfToken, authuserIndex) {
   } catch (fetchErr) {
     clearTimeout(timeoutId);
     if (fetchErr.name === 'AbortError') {
-      const e = new Error('TIMEOUT'); e.code = 'TIMEOUT'; throw e;
+      throw NtcUtils.ntcError('TIMEOUT', 'TIMEOUT');
     }
     throw fetchErr;
   }
@@ -394,7 +394,7 @@ async function batchExecute(rpcId, params, csrfToken, authuserIndex) {
 
   if (!resp.ok) {
     if (resp.status === 401 || resp.status === 403) {
-      const e = new Error('AUTH_EXPIRED'); e.code = 'AUTH_EXPIRED'; throw e;
+      throw NtcUtils.ntcError('AUTH_EXPIRED', 'AUTH_EXPIRED');
     }
     throw new Error(`HTTP ${resp.status}`);
   }
@@ -460,7 +460,7 @@ async function listNotebooks(csrfToken, authuserIndex) {
       const raw = JSON.stringify(result).slice(0, 120);
       return { notebooks: [{ id: '__diag__', title: '🔍 non-array: ' + raw }] };
     }
-    const e = new Error('API_CHANGED'); e.code = 'API_CHANGED'; throw e;
+    throw NtcUtils.ntcError('API_CHANGED', 'API_CHANGED');
   }
 
   // ── Mapping ─────────────────────────────────────────────────────────────
@@ -522,7 +522,7 @@ async function listNotebooks(csrfToken, authuserIndex) {
 
   if (notebooks.length === 0 && !NtcUtils.DEBUG) {
     // Des données présentes mais aucun carnet mappé → structure modifiée
-    const e = new Error('API_CHANGED'); e.code = 'API_CHANGED'; throw e;
+    throw NtcUtils.ntcError('API_CHANGED', 'API_CHANGED');
   }
   if (notebooks.length === 0) {
     // Mode DEBUG : montrer la structure brute du premier élément
@@ -566,7 +566,7 @@ async function createNotebook(csrfToken, title, authuserIndex) {
     id = extractFirstUuid(result);  // secours si la structure se décale
   }
 
-  if (!id) { const e = new Error('API_CHANGED'); e.code = 'API_CHANGED'; throw e; }
+  if (!id) { throw NtcUtils.ntcError('API_CHANGED', 'API_CHANGED'); }
   return { id, title };
 }
 
@@ -616,7 +616,7 @@ async function uploadFileSource(csrfToken, fileBlob, filename, notebookId, authu
   const sourceId = extractRegisterFileSourceId(registerResult, filename);
 
   if (!sourceId) {
-    const e = new Error('API_CHANGED'); e.code = 'API_CHANGED'; throw e;
+    throw NtcUtils.ntcError('API_CHANGED', 'API_CHANGED');
   }
 
   // Étape 2 — Start upload (timeout 120s pour les fichiers volumineux)
@@ -653,30 +653,30 @@ async function uploadFileSource(csrfToken, fileBlob, filename, notebookId, authu
   } catch (startErr) {
     clearTimeout(startTimeoutId);
     if (startErr.name === 'AbortError') {
-      const e = new Error('TIMEOUT'); e.code = 'TIMEOUT'; throw e;
+      throw NtcUtils.ntcError('TIMEOUT', 'TIMEOUT');
     }
     throw startErr;
   }
 
   // P1.5 — Vérification auth sur l'étape start
   if (startResp.status === 401 || startResp.status === 403) {
-    const e = new Error('AUTH_EXPIRED'); e.code = 'AUTH_EXPIRED'; throw e;
+    throw NtcUtils.ntcError('AUTH_EXPIRED', 'AUTH_EXPIRED');
   }
 
   // P1.4 — Validation du domaine uploadUrl
   const uploadUrl = startResp.headers.get('x-goog-upload-url');
   if (!uploadUrl) {
-    const e = new Error('UPLOAD_SESSION_MISSING'); e.code = 'UPLOAD_SESSION_MISSING'; throw e;
+    throw NtcUtils.ntcError('UPLOAD_SESSION_MISSING', 'UPLOAD_SESSION_MISSING');
   }
   try {
     const parsedUrl = new URL(uploadUrl);
     if (parsedUrl.protocol !== 'https:' ||
         !(parsedUrl.hostname.endsWith('.google.com') || parsedUrl.hostname.endsWith('.googleapis.com'))) {
-      const e = new Error('UPLOAD_SESSION_MISSING'); e.code = 'UPLOAD_SESSION_MISSING'; throw e;
+      throw NtcUtils.ntcError('UPLOAD_SESSION_MISSING', 'UPLOAD_SESSION_MISSING');
     }
   } catch (urlErr) {
     if (urlErr.code === 'UPLOAD_SESSION_MISSING') throw urlErr;
-    const e = new Error('UPLOAD_SESSION_MISSING'); e.code = 'UPLOAD_SESSION_MISSING'; throw e;
+    throw NtcUtils.ntcError('UPLOAD_SESSION_MISSING', 'UPLOAD_SESSION_MISSING');
   }
 
   // Étape 3 — Upload + finalize (timeout 120s)
@@ -704,14 +704,14 @@ async function uploadFileSource(csrfToken, fileBlob, filename, notebookId, authu
   } catch (finErr) {
     clearTimeout(finalizeTimeoutId);
     if (finErr.name === 'AbortError') {
-      const e = new Error('TIMEOUT'); e.code = 'TIMEOUT'; throw e;
+      throw NtcUtils.ntcError('TIMEOUT', 'TIMEOUT');
     }
     throw finErr;
   }
 
   // P1.5 — Vérification auth sur l'étape finalize
   if (finalizeResp.status === 401 || finalizeResp.status === 403) {
-    const e = new Error('AUTH_EXPIRED'); e.code = 'AUTH_EXPIRED'; throw e;
+    throw NtcUtils.ntcError('AUTH_EXPIRED', 'AUTH_EXPIRED');
   }
 
   if (!finalizeResp.ok) {

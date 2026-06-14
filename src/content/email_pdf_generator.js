@@ -6,7 +6,6 @@
 
 'use strict';
 
-var __ntc_pdf_generator = true;
 
 window.__ntc_generate_pdf = function (grounding, intentNote, labels) {
   return new Promise((resolve, reject) => {
@@ -93,7 +92,7 @@ window.__ntc_generate_pdf = function (grounding, intentNote, labels) {
 
       function renderList(listNode, isOrdered) {
         let index = 1;
-        const listItems = listNode.querySelectorAll(':scope > li');
+        const listItems = Array.from(listNode.children).filter(child => child.tagName.toLowerCase() === 'li');
         listItems.forEach(li => {
           const text = (li.innerText || li.textContent || '').trim();
           if (!text) return;
@@ -115,15 +114,36 @@ window.__ntc_generate_pdf = function (grounding, intentNote, labels) {
         y += 4;
       }
 
+      function isLayoutTable(tableNode) {
+        if (tableNode.querySelector('table')) {
+          return true;
+        }
+
+        const rows = Array.from(tableNode.querySelectorAll('tr')).filter(tr => tr.closest('table') === tableNode);
+        if (rows.length === 0) return true;
+        if (rows.length === 1) return true;
+
+        let maxCols = 0;
+        rows.forEach(row => {
+          const cellsCount = row.cells ? row.cells.length : 0;
+          if (cellsCount > maxCols) {
+            maxCols = cellsCount;
+          }
+        });
+
+        if (maxCols <= 1) return true;
+        return false;
+      }
+
       function renderTable(tableNode) {
-        const rows = tableNode.querySelectorAll(':scope > tr, :scope > tbody > tr, :scope > thead > tr, :scope > tfoot > tr');
+        const rows = Array.from(tableNode.querySelectorAll('tr')).filter(tr => tr.closest('table') === tableNode);
         if (rows.length === 0) return;
 
         const mdLines = [];
         let colCount = 0;
 
         rows.forEach((row, rowIndex) => {
-          const cells = row.querySelectorAll(':scope > th, :scope > td');
+          const cells = Array.from(row.cells);
           if (cells.length === 0) return;
 
           const cellTexts = [];
@@ -288,7 +308,13 @@ window.__ntc_generate_pdf = function (grounding, intentNote, labels) {
           } else if (tag === 'ul' || tag === 'ol') {
             renderList(node, tag === 'ol');
           } else if (tag === 'table') {
-            renderTable(node);
+            if (isLayoutTable(node)) {
+              for (const child of node.childNodes) {
+                walk(child);
+              }
+            } else {
+              renderTable(node);
+            }
           } else if (tag === 'img') {
             renderImage(node);
           } else {
@@ -312,4 +338,4 @@ window.__ntc_generate_pdf = function (grounding, intentNote, labels) {
     }
   });
 };
-void 0;
+

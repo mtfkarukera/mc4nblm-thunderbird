@@ -110,18 +110,14 @@ async function fetchCSRFTokens(authuserIndex) {
   } catch (err) {
     clearTimeout(timeoutId);
     if (err.name === 'AbortError') {
-      const e = new Error('TIMEOUT');
-      e.code = 'TIMEOUT';
-      throw e;
+      throw NtcUtils.ntcError('TIMEOUT', 'TIMEOUT');
     }
     throw err;
   }
 
   if (!response.ok) {
     if (response.status === 401 || response.status === 403) {
-      const err = new Error('AUTH_EXPIRED');
-      err.code = 'AUTH_EXPIRED';
-      throw err;
+      throw NtcUtils.ntcError('AUTH_EXPIRED', 'AUTH_EXPIRED');
     }
     throw new Error(`HTTP ${response.status}`);
   }
@@ -134,9 +130,7 @@ async function fetchCSRFTokens(authuserIndex) {
   // à NotebookLM, etc.) → session inutilisable : AUTH_EXPIRED explicite.
   // Ne JAMAIS retourner csrfToken: null silencieusement (revue 2026-06-10).
   if (!snlMatch) {
-    const err = new Error('AUTH_EXPIRED');
-    err.code = 'AUTH_EXPIRED';
-    throw err;
+    throw NtcUtils.ntcError('AUTH_EXPIRED', 'AUTH_EXPIRED');
   }
 
   return { csrfToken: snlMatch[1] };

@@ -30,6 +30,98 @@ let _captureInProgress = false; // Verrou global : une seule capture à la fois 
 // Clés de storage : source unique dans NtcUtils (revue 2026-06-10)
 const STORAGE_KEYS = NtcUtils.STORAGE_KEYS;
 
+// ─────────────────────────────────────────────
+// CONSTANTES ET CONFIGURATION MIME
+// ─────────────────────────────────────────────
+
+const MAX_SIZE = 200 * 1024 * 1024; // 200 MB
+
+const SUPPORTED_MIME = new Set([
+  'application/pdf',
+  'text/plain',
+  'text/markdown',
+  'text/csv',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'application/msword',
+  'application/vnd.ms-powerpoint',
+  'application/vnd.ms-excel',
+  'image/png', 'image/jpeg', 'image/webp', 'image/heic', 'image/heif',
+  'audio/mpeg', 'audio/mp4', 'audio/wav', 'audio/webm', 'audio/ogg',
+  'audio/flac', 'audio/aac', 'audio/x-aiff',
+  'video/mp4', 'video/mpeg', 'video/quicktime', 'video/avi', 'video/x-flv',
+  'video/x-ms-wmv', 'video/3gpp', 'video/webm',
+]);
+
+const EXT_TO_MIME = {
+  'pdf': 'application/pdf',
+  'txt': 'text/plain',
+  'md': 'text/markdown',
+  'markdown': 'text/markdown',
+  'csv': 'text/csv',
+  'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'doc': 'application/msword',
+  'pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  'ppt': 'application/vnd.ms-powerpoint',
+  'xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'xls': 'application/vnd.ms-excel',
+  'png': 'image/png',
+  'jpg': 'image/jpeg',
+  'jpeg': 'image/jpeg',
+  'webp': 'image/webp',
+  'heic': 'image/heic',
+  'heif': 'image/heif',
+  'mp3': 'audio/mpeg',
+  'm4a': 'audio/mp4',
+  'wav': 'audio/wav',
+  'webm': 'audio/webm',
+  'ogg': 'audio/ogg',
+  'flac': 'audio/flac',
+  'aac': 'audio/aac',
+  'aiff': 'audio/x-aiff',
+  'aif': 'audio/x-aiff',
+  'mp4': 'video/mp4',
+  'mpeg': 'video/mpeg',
+  'mpg': 'video/bold-italic',
+  'mov': 'video/quicktime',
+  'avi': 'video/avi',
+  'flv': 'video/x-flv',
+  'wmv': 'video/x-ms-wmv',
+  '3gp': 'video/3gpp',
+};
+
+// ─────────────────────────────────────────────
+// CENTRALISATION DE L'AUTHENTIFICATION (P3.1)
+// ─────────────────────────────────────────────
+
+/**
+ * S'assure que l'utilisateur est authentifié en vérifiant les cookies
+ * et en récupérant un jeton CSRF à jour.
+ *
+ * @returns {Promise<string>} Le jeton CSRF récupéré.
+ * @throws {Error} AUTH_EXPIRED si les cookies ou le token sont invalides/expirés.
+ */
+async function ensureAuthenticated() {
+  const cookieMap = await NtcAuth.collectGoogleCookies();
+  const { valid } = NtcAuth.validateCookies(cookieMap);
+  if (!valid) {
+    clearAuthSession();
+    throw NtcUtils.ntcError('AUTH_EXPIRED', 'AUTH_EXPIRED');
+  }
+
+  try {
+    const tokens = await NtcAuth.fetchCSRFTokens(_activeAuthuserIndex);
+    _csrfToken = tokens.csrfToken;
+    return _csrfToken;
+  } catch (e) {
+    if (e.code === 'AUTH_EXPIRED') {
+      clearAuthSession();
+    }
+    throw e;
+  }
+}
+
 function clearAuthSession() {
   _csrfToken = null;
   try {
@@ -178,16 +270,12 @@ async function getActiveMessageTabAndHeader() {
   const tab = tabs[0];
 
   if (!tab) {
-    const err = new Error('NO_EMAIL_DISPLAYED');
-    err.code = 'NO_EMAIL_DISPLAYED';
-    throw err;
+    throw NtcUtils.ntcError('NO_EMAIL_DISPLAYED', 'NO_EMAIL_DISPLAYED');
   }
 
   const header = await messenger.messageDisplay.getDisplayedMessage(tab.id);
   if (!header) {
-    const err = new Error('NO_EMAIL_DISPLAYED');
-    err.code = 'NO_EMAIL_DISPLAYED';
-    throw err;
+    throw NtcUtils.ntcError('NO_EMAIL_DISPLAYED', 'NO_EMAIL_DISPLAYED');
   }
 
   return { tab, header };
@@ -238,12 +326,17 @@ function extractEmailBody(parts, acc) {
   if (!parts || !Array.isArray(parts)) return result;
 
   for (const part of parts) {
-    if (part.contentType === 'text/html' && !result.html) result.html = part.body || '';
-    if (part.contentType === 'text/plain' && !result.text) result.text = part.body || '';
+    if (part.contentType === 'text/html') {
+      result.html = (result.html ? result.html + '\n' : '') + (part.body || '');
+    }
+    if (part.contentType === 'text/plain') {
+      result.text = (result.text ? result.text + '\n' : '') + (part.body || '');
+    }
     if (part.parts) extractEmailBody(part.parts, result);
   }
   return result;
 }
+
 
 /**
  * Filtre les pièces jointes supportées par NotebookLM (par MIME type et taille).
@@ -258,65 +351,6 @@ function extractEmailBody(parts, acc) {
  * @returns {Array} - PJ avec { name, partName, contentType, size, tooLarge?, unknownType? }.
  */
 function filterSupportedAttachments(attachments) {
-  const MAX_SIZE = 200 * 1024 * 1024; // 200 MB
-
-  const SUPPORTED_MIME = new Set([
-    'application/pdf',
-    'text/plain',
-    'text/markdown',
-    'text/csv',
-    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-    'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-    'application/msword',
-    'application/vnd.ms-powerpoint',
-    'application/vnd.ms-excel',
-    'image/png', 'image/jpeg', 'image/webp', 'image/heic', 'image/heif',
-    'audio/mpeg', 'audio/mp4', 'audio/wav', 'audio/webm', 'audio/ogg',
-    'audio/flac', 'audio/aac', 'audio/x-aiff',
-    // 'video/quicktime' (.mov) — ajouté en revue 2026-06-10 ;
-    // 'video/mov' retiré (type MIME inexistant)
-    'video/mp4', 'video/mpeg', 'video/quicktime', 'video/avi', 'video/x-flv',
-    'video/x-ms-wmv', 'video/3gpp', 'video/webm',
-  ]);
-
-  const EXT_TO_MIME = {
-    'pdf': 'application/pdf',
-    'txt': 'text/plain',
-    'md': 'text/markdown',
-    'markdown': 'text/markdown',
-    'csv': 'text/csv',
-    'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-    'doc': 'application/msword',
-    'pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-    'ppt': 'application/vnd.ms-powerpoint',
-    'xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-    'xls': 'application/vnd.ms-excel',
-    'png': 'image/png',
-    'jpg': 'image/jpeg',
-    'jpeg': 'image/jpeg',
-    'webp': 'image/webp',
-    'heic': 'image/heic',
-    'heif': 'image/heif',
-    'mp3': 'audio/mpeg',
-    'm4a': 'audio/mp4',
-    'wav': 'audio/wav',
-    'webm': 'audio/webm',
-    'ogg': 'audio/ogg',
-    'flac': 'audio/flac',
-    'aac': 'audio/aac',
-    'aiff': 'audio/x-aiff',
-    'aif': 'audio/x-aiff',
-    'mp4': 'video/mp4',
-    'mpeg': 'video/mpeg',
-    'mpg': 'video/mpeg',
-    'mov': 'video/quicktime',
-    'avi': 'video/avi',
-    'flv': 'video/x-flv',
-    'wmv': 'video/x-ms-wmv',
-    '3gp': 'video/3gpp',
-  };
-
   const filtered = [];
   for (const att of attachments || []) {
     // 1. Résoudre le MIME d'abord (audit 2026-06-10) : une PJ d'un format
@@ -405,9 +439,7 @@ async function handleGetActiveEmailMeta() {
   const body = extractEmailBody(fullMessage.parts);
 
   if (!body.text && !body.html) {
-    const err = new Error('EMPTY_EMAIL_BODY');
-    err.code = 'EMPTY_EMAIL_BODY';
-    throw err;
+    throw NtcUtils.ntcError('EMPTY_EMAIL_BODY', 'EMPTY_EMAIL_BODY');
   }
 
   const rawAttachments = await messenger.messages.listAttachments(header.id);
@@ -427,17 +459,8 @@ async function handleGetActiveEmailMeta() {
 // ─────────────────────────────────────────────
 
 async function handleGetNotebooks() {
-  const cookieMap = await NtcAuth.collectGoogleCookies();
-  const { valid } = NtcAuth.validateCookies(cookieMap);
-  NtcUtils.log('handleGetNotebooks — cookies valides?', valid, 'nb cookies:', Object.keys(cookieMap).join(', '));
-  if (!valid) { const e = new Error('AUTH_EXPIRED'); e.code = 'AUTH_EXPIRED'; throw e; }
-
-  // fetchCSRFTokens lève AUTH_EXPIRED si le token est introuvable (revue 2026-06-10).
-  // Plus d'entrées diagnostic __diag__ en production : les erreurs remontent
-  // à la popup qui affiche le bon message (mode DEBUG : diag gérés par NtcRpc).
-  const tokens = await NtcAuth.fetchCSRFTokens(_activeAuthuserIndex);
-  _csrfToken = tokens.csrfToken;
-  NtcUtils.log('fetchCSRFTokens — csrfToken présent?', !!_csrfToken);
+  NtcUtils.log('handleGetNotebooks — vérification auth');
+  _csrfToken = await ensureAuthenticated();
 
   const result = await NtcRpc.listNotebooks(_csrfToken, _activeAuthuserIndex);
   NtcUtils.log('listNotebooks résultat :', result.notebooks.length, 'carnets');
@@ -449,15 +472,10 @@ async function handleCreateNotebook(message) {
   // (L'UI désactive déjà le bouton sur titre vide — défense en profondeur.)
   const title = (message.title || '').trim();
   if (!title) {
-    const e = new Error('INVALID_TITLE'); e.code = 'INVALID_TITLE'; throw e;
+    throw NtcUtils.ntcError('INVALID_TITLE', 'INVALID_TITLE');
   }
 
-  const cookieMap = await NtcAuth.collectGoogleCookies();
-  const { valid } = NtcAuth.validateCookies(cookieMap);
-  if (!valid) { const e = new Error('AUTH_EXPIRED'); e.code = 'AUTH_EXPIRED'; throw e; }
-
-  const tokens = await NtcAuth.fetchCSRFTokens(_activeAuthuserIndex);
-  _csrfToken = tokens.csrfToken;
+  _csrfToken = await ensureAuthenticated();
 
   return NtcRpc.createNotebook(_csrfToken, title, _activeAuthuserIndex);
 }
@@ -513,21 +531,9 @@ async function handleStartCapture(message) {
   try {
     notifyUI({ status: 'capturing' });
 
-    const cookieMap = await NtcAuth.collectGoogleCookies();
-    const { valid } = NtcAuth.validateCookies(cookieMap);
-    if (!valid) {
-      clearAuthSession();
-      notifyUI({ status: 'error', code: 'AUTH_EXPIRED' });
-      return;
-    }
-
     try {
-      const tokens = await NtcAuth.fetchCSRFTokens(_activeAuthuserIndex);
-      _csrfToken = tokens.csrfToken;
+      _csrfToken = await ensureAuthenticated();
     } catch (e) {
-      if (e.code === 'AUTH_EXPIRED') {
-        clearAuthSession();
-      }
       notifyUI({ status: 'error', code: e.code || 'UNKNOWN', detail: getRichErrorDetail(e) });
       return;
     }
@@ -556,8 +562,7 @@ async function handleStartCapture(message) {
 // ── Pipeline PDF (Phase 3) ──────────────────
 async function handlePdfCapture(message) {
   if (_pendingPdfResolve) {
-    const err = new Error(browser.i18n.getMessage('errorPdfCaptureInProgress') || 'Une capture PDF est déjà en cours.');
-    err.code = 'INJECTION_FAILED';
+    const err = NtcUtils.ntcError('INJECTION_FAILED', browser.i18n.getMessage('errorPdfCaptureInProgress') || 'Une capture PDF est déjà en cours.');
     notifyUI({ status: 'error', code: err.code, detail: err.message });
     return;
   }
@@ -634,8 +639,7 @@ async function handlePdfCapture(message) {
         if (_pendingPdfResolve === resolve) {
           _pendingPdfResolve = null;
           _pendingPdfReject = null;
-          const err = new Error('TIMEOUT');
-          err.code = 'TIMEOUT';
+          const err = NtcUtils.ntcError('TIMEOUT', 'TIMEOUT');
           reject(err);
         }
       }, 30000);
@@ -650,14 +654,7 @@ async function handlePdfCapture(message) {
   notifyUI({ status: 'capturing', statusKey: 'statusUploading' });
 
   try {
-    const base64Data = captureResult.pdfBase64.split(',')[1];
-    const byteCharacters = atob(base64Data);
-    const byteNumbers = new Array(byteCharacters.length);
-    for (let i = 0; i < byteCharacters.length; i++) {
-      byteNumbers[i] = byteCharacters.charCodeAt(i);
-    }
-    const byteArray = new Uint8Array(byteNumbers);
-    const pdfBlob = new Blob([byteArray], { type: 'application/pdf' });
+    const pdfBlob = NtcUtils.base64ToBlob(captureResult.pdfBase64, 'application/pdf');
 
     // Sujet brut mémorisé côté background pour le téléchargement local
     // (la popup n'envoie plus de titre tronqué — revue 2026-06-10)
@@ -876,8 +873,7 @@ function handlePdfReady(message) {
 
 function handleCaptureError(message) {
   if (_pendingPdfReject) {
-    const err = new Error(message.detail || browser.i18n.getMessage('errorCaptureFailed') || 'Capture failed');
-    err.code = message.code || 'UNKNOWN';
+    const err = NtcUtils.ntcError(message.code || 'UNKNOWN', message.detail || browser.i18n.getMessage('errorCaptureFailed') || 'Capture failed');
     _pendingPdfReject(err);
     _pendingPdfResolve = null;
     _pendingPdfReject = null;
@@ -917,10 +913,7 @@ async function handleDownloadCapture(message) {
   let blob = null;
   let ext = null;
   if (message.fileType === 'pdf' && _lastCapturePdfB64) {
-    const byteStr = atob(_lastCapturePdfB64.split(',')[1]);
-    const bytes = new Uint8Array(byteStr.length);
-    for (let i = 0; i < byteStr.length; i++) bytes[i] = byteStr.charCodeAt(i);
-    blob = new Blob([bytes], { type: 'application/pdf' });
+    blob = NtcUtils.base64ToBlob(_lastCapturePdfB64, 'application/pdf');
     ext = 'pdf';
   } else if (message.fileType === 'md' && _lastCaptureMdText) {
     blob = new Blob([_lastCaptureMdText], { type: 'text/markdown' });

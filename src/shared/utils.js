@@ -65,18 +65,33 @@ var NtcUtils = (function () {
   }
 
   /**
-   * Convertit un Blob en data URI Base64 via FileReader.
+   * Convertit une chaîne de données base64 (avec ou sans préfixe "data:...") en Blob.
    *
-   * @param  {Blob} blob - Blob à convertir.
-   * @returns {Promise<string>} - Data URI complet (ex: "data:application/pdf;base64,…").
+   * @param {string} base64 - Données base64.
+   * @param {string} mimeType - Type MIME du Blob résultant.
+   * @returns {Blob} Le Blob converti.
    */
-  function blobToBase64(blob) {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onloadend = () => resolve(reader.result);
-      reader.onerror = reject;
-      reader.readAsDataURL(blob);
-    });
+  function base64ToBlob(base64, mimeType) {
+    const cleanB64 = base64.includes(',') ? base64.split(',')[1] : base64;
+    const byteCharacters = atob(cleanB64);
+    const byteNumbers = new Uint8Array(byteCharacters.length);
+    for (let i = 0; i < byteCharacters.length; i++) {
+      byteNumbers[i] = byteCharacters.charCodeAt(i);
+    }
+    return new Blob([byteNumbers], { type: mimeType });
+  }
+
+  /**
+   * Helper pour créer une erreur typée avec un code.
+   *
+   * @param {string} code - Le code d'erreur (ex: 'AUTH_EXPIRED').
+   * @param {string} message - Le message d'erreur.
+   * @returns {Error} L'erreur créée.
+   */
+  function ntcError(code, message) {
+    const err = new Error(message);
+    err.code = code;
+    return err;
   }
 
   /**
@@ -225,15 +240,15 @@ var NtcUtils = (function () {
       return true;
     }
 
-    const rows = tableNode.querySelectorAll('tr');
+    const rows = Array.from(tableNode.querySelectorAll('tr')).filter(tr => tr.closest('table') === tableNode);
     if (rows.length === 0) return true;
     if (rows.length === 1) return true;
 
     let maxCols = 0;
     rows.forEach(row => {
-      const cells = row.querySelectorAll(':scope > th, :scope > td');
-      if (cells.length > maxCols) {
-        maxCols = cells.length;
+      const cellsCount = row.cells ? row.cells.length : 0;
+      if (cellsCount > maxCols) {
+        maxCols = cellsCount;
       }
     });
 
@@ -245,14 +260,14 @@ var NtcUtils = (function () {
    * Convertit un élément table en tableau Markdown.
    */
   function tableToMarkdown(tableNode) {
-    const rows = tableNode.querySelectorAll(':scope > tr, :scope > tbody > tr, :scope > thead > tr, :scope > tfoot > tr');
+    const rows = Array.from(tableNode.querySelectorAll('tr')).filter(tr => tr.closest('table') === tableNode);
     if (rows.length === 0) return '';
 
     const mdLines = [];
     let hasHeaderSeparatorBeenAdded = false;
 
     rows.forEach((row) => {
-      const cells = row.querySelectorAll(':scope > th, :scope > td');
+      const cells = Array.from(row.cells);
       if (cells.length === 0) return;
 
       const cellTexts = [];
@@ -280,7 +295,7 @@ var NtcUtils = (function () {
    * Convertit un élément ul ou ol en liste Markdown.
    */
   function listToMarkdown(listNode, isOrdered, depth = 0) {
-    const listItems = listNode.querySelectorAll(':scope > li');
+    const listItems = Array.from(listNode.children).filter(child => child.tagName.toLowerCase() === 'li');
     const mdLines = [];
     let index = 1;
 
@@ -375,7 +390,8 @@ var NtcUtils = (function () {
     log,
     STORAGE_KEYS,
     t,
-    blobToBase64,
+    base64ToBlob,
+    ntcError,
     buildNotebookUrl,
     htmlToMarkdown,
     sanitizeFilename,
