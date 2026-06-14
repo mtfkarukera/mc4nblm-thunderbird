@@ -363,17 +363,32 @@ async function batchExecute(rpcId, params, csrfToken, authuserIndex) {
   const qs = buildQueryString(rpcId, authuserIndex);
   const url = `${NBLM_BATCH_URL}?${qs}`;
 
-  const resp = await fetch(url, {
-    method: 'POST',
-    credentials: 'include',
-    headers: {
-      'Accept': '*/*',
-      'Content-Type': 'application/x-www-form-urlencoded;charset=utf-8',
-      'Origin': 'https://notebooklm.google.com',
-      'Referer': 'https://notebooklm.google.com/',
-    },
-    body,
-  });
+  // AbortController — timeout 30s pour les appels RPC
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 30000);
+
+  let resp;
+  try {
+    resp = await fetch(url, {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'Accept': '*/*',
+        'Content-Type': 'application/x-www-form-urlencoded;charset=utf-8',
+        'Origin': 'https://notebooklm.google.com',
+        'Referer': 'https://notebooklm.google.com/',
+      },
+      body,
+      signal: controller.signal,
+    });
+    clearTimeout(timeoutId);
+  } catch (fetchErr) {
+    clearTimeout(timeoutId);
+    if (fetchErr.name === 'AbortError') {
+      const e = new Error('TIMEOUT'); e.code = 'TIMEOUT'; throw e;
+    }
+    throw fetchErr;
+  }
 
   NtcUtils.log('batchExecute', rpcId, '→ HTTP', resp.status, 'ok?', resp.ok);
 
@@ -401,6 +416,7 @@ async function batchExecute(rpcId, params, csrfToken, authuserIndex) {
     _lastChunksLength = chunks.length;
     const result = extractRpcResult(chunks, rpcId);
     NtcUtils.log('batchExecute', rpcId, '— chunks:', chunks.length, 'result:', result === null ? 'null' : typeof result);
+    _lastRawText = ''; // P1.8 — Purge après extraction pour libérer la mémoire
     return result;
   } catch (err) {
     _lastError = 'parse_err: ' + err.message;
@@ -603,51 +619,100 @@ async function uploadFileSource(csrfToken, fileBlob, filename, notebookId, authu
     const e = new Error('API_CHANGED'); e.code = 'API_CHANGED'; throw e;
   }
 
-  // Étape 2 — Start upload
-  const startResp = await fetch(
-    `https://notebooklm.google.com/upload/_/?authuser=${authuserIndex}`,
-    {
-      method: 'POST',
-      credentials: 'include',
-      headers: {
-        'Accept': '*/*',
-        'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8',
-        'Origin': 'https://notebooklm.google.com',
-        'Referer': 'https://notebooklm.google.com/',
-        'x-goog-upload-command': 'start',
-        'x-goog-upload-protocol': 'resumable',
-        'x-goog-upload-header-content-length': String(fileBlob.size),
-        'x-goog-upload-header-content-type': contentType || fileBlob.type || 'application/octet-stream',
-        'x-goog-authuser': String(authuserIndex),
-      },
-      body: JSON.stringify({
-        PROJECT_ID: notebookId,
-        SOURCE_NAME: filename,
-        SOURCE_ID: sourceId,
-      }),
-    }
-  );
+  // Étape 2 — Start upload (timeout 120s pour les fichiers volumineux)
+  const startController = new AbortController();
+  const startTimeoutId = setTimeout(() => startController.abort(), 120000);
 
+  let startResp;
+  try {
+    startResp = await fetch(
+      `https://notebooklm.google.com/upload/_/?authuser=${authuserIndex}`,
+      {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Accept': '*/*',
+          'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8',
+          'Origin': 'https://notebooklm.google.com',
+          'Referer': 'https://notebooklm.google.com/',
+          'x-goog-upload-command': 'start',
+          'x-goog-upload-protocol': 'resumable',
+          'x-goog-upload-header-content-length': String(fileBlob.size),
+          'x-goog-upload-header-content-type': contentType || fileBlob.type || 'application/octet-stream',
+          'x-goog-authuser': String(authuserIndex),
+        },
+        body: JSON.stringify({
+          PROJECT_ID: notebookId,
+          SOURCE_NAME: filename,
+          SOURCE_ID: sourceId,
+        }),
+        signal: startController.signal,
+      }
+    );
+    clearTimeout(startTimeoutId);
+  } catch (startErr) {
+    clearTimeout(startTimeoutId);
+    if (startErr.name === 'AbortError') {
+      const e = new Error('TIMEOUT'); e.code = 'TIMEOUT'; throw e;
+    }
+    throw startErr;
+  }
+
+  // P1.5 — Vérification auth sur l'étape start
+  if (startResp.status === 401 || startResp.status === 403) {
+    const e = new Error('AUTH_EXPIRED'); e.code = 'AUTH_EXPIRED'; throw e;
+  }
+
+  // P1.4 — Validation du domaine uploadUrl
   const uploadUrl = startResp.headers.get('x-goog-upload-url');
   if (!uploadUrl) {
     const e = new Error('UPLOAD_SESSION_MISSING'); e.code = 'UPLOAD_SESSION_MISSING'; throw e;
   }
+  try {
+    const parsedUrl = new URL(uploadUrl);
+    if (parsedUrl.protocol !== 'https:' ||
+        !(parsedUrl.hostname.endsWith('.google.com') || parsedUrl.hostname.endsWith('.googleapis.com'))) {
+      const e = new Error('UPLOAD_SESSION_MISSING'); e.code = 'UPLOAD_SESSION_MISSING'; throw e;
+    }
+  } catch (urlErr) {
+    if (urlErr.code === 'UPLOAD_SESSION_MISSING') throw urlErr;
+    const e = new Error('UPLOAD_SESSION_MISSING'); e.code = 'UPLOAD_SESSION_MISSING'; throw e;
+  }
 
-  // Étape 3 — Upload + finalize
-  const finalizeResp = await fetch(uploadUrl, {
-    method: 'POST',
-    credentials: 'include',
-    headers: {
-      'Accept': '*/*',
-      'Content-Type': 'application/x-www-form-urlencoded;charset=utf-8',
-      'Origin': 'https://notebooklm.google.com',
-      'Referer': 'https://notebooklm.google.com/',
-      'x-goog-upload-command': 'upload, finalize',
-      'x-goog-upload-offset': '0',
-      'x-goog-authuser': String(authuserIndex),
-    },
-    body: fileBlob,
-  });
+  // Étape 3 — Upload + finalize (timeout 120s)
+  const finalizeController = new AbortController();
+  const finalizeTimeoutId = setTimeout(() => finalizeController.abort(), 120000);
+
+  let finalizeResp;
+  try {
+    finalizeResp = await fetch(uploadUrl, {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'Accept': '*/*',
+        'Content-Type': 'application/x-www-form-urlencoded;charset=utf-8',
+        'Origin': 'https://notebooklm.google.com',
+        'Referer': 'https://notebooklm.google.com/',
+        'x-goog-upload-command': 'upload, finalize',
+        'x-goog-upload-offset': '0',
+        'x-goog-authuser': String(authuserIndex),
+      },
+      body: fileBlob,
+      signal: finalizeController.signal,
+    });
+    clearTimeout(finalizeTimeoutId);
+  } catch (finErr) {
+    clearTimeout(finalizeTimeoutId);
+    if (finErr.name === 'AbortError') {
+      const e = new Error('TIMEOUT'); e.code = 'TIMEOUT'; throw e;
+    }
+    throw finErr;
+  }
+
+  // P1.5 — Vérification auth sur l'étape finalize
+  if (finalizeResp.status === 401 || finalizeResp.status === 403) {
+    const e = new Error('AUTH_EXPIRED'); e.code = 'AUTH_EXPIRED'; throw e;
+  }
 
   if (!finalizeResp.ok) {
     throw new Error(`HTTP ${finalizeResp.status}`);

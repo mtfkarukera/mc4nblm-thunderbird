@@ -30,6 +30,8 @@ let _currentNotebookId  = null;
 let _currentMessageId   = null;
 let _pingInterval       = null;
 let _currentFormat      = null;  // 'pdf' | 'md' | 'attachment'
+let _isCapturing        = false; // P1.1b — verrou anti-double-clic
+let _captureTimeout     = null;  // P1.3  — timeout de secours (120s)
 
 // Clés de storage : source unique dans NtcUtils (revue 2026-06-10)
 const STORAGE_KEYS = (typeof NtcUtils !== 'undefined' && NtcUtils.STORAGE_KEYS) || {
@@ -47,6 +49,12 @@ const STORAGE_KEYS = (typeof NtcUtils !== 'undefined' && NtcUtils.STORAGE_KEYS) 
  * @param {'authRequired'|'loading'|'ready'|'capturing'|'success'|'error'} name
  */
 function showState(name) {
+  // P1.3 — Toujours annuler le timeout de secours lors d'un changement d'état
+  if (_captureTimeout) {
+    clearTimeout(_captureTimeout);
+    _captureTimeout = null;
+  }
+
   const idMap = {
     authRequired : 'state-auth-required',
     loading      : 'state-loading',
@@ -66,7 +74,23 @@ function showState(name) {
   }
 
   stopKeepAlive();
-  if (name === 'capturing') startKeepAlive();
+  if (name === 'capturing') {
+    startKeepAlive();
+    // P1.3 — Timeout de secours : si aucun STATUS_UPDATE en 120s, basculer en erreur
+    _captureTimeout = setTimeout(() => {
+      _isCapturing = false;
+      setImportButtonsDisabled(false);
+      showError('TIMEOUT');
+    }, 120000);
+  }
+}
+
+/**
+ * P1.1b — Active/désactive les boutons d'import pour éviter les double-clics.
+ */
+function setImportButtonsDisabled(disabled) {
+  const btns = document.querySelectorAll('#btn-pdf, #btn-md, #btn-import-attachments');
+  btns.forEach(btn => { btn.disabled = disabled; });
 }
 
 // ─────────────────────────────────────────────
@@ -492,12 +516,16 @@ function getIntentNote() {
  * @param {string} format - 'pdf' | 'md'
  */
 function startEmailCapture(format) {
+  if (_isCapturing) return; // P1.1b — anti-double-clic
+
   if (!_currentNotebookId) {
     document.getElementById('error-message').textContent = t('errNoNotebook');
     showState('error');
     return;
   }
 
+  _isCapturing = true;
+  setImportButtonsDisabled(true);
   _currentFormat = format;
   showState('capturing');
 
@@ -515,6 +543,8 @@ function startEmailCapture(format) {
  * Lance un import de pièces jointes sélectionnées.
  */
 function startAttachmentCapture() {
+  if (_isCapturing) return; // P1.1b — anti-double-clic
+
   if (!_currentNotebookId) {
     document.getElementById('error-message').textContent = t('errNoNotebook');
     showState('error');
@@ -530,6 +560,8 @@ function startAttachmentCapture() {
     contentType: cb.dataset.contentType,
   }));
 
+  _isCapturing = true;
+  setImportButtonsDisabled(true);
   _currentFormat = 'attachment';
   showState('capturing');
 
@@ -569,6 +601,8 @@ browser.runtime.onMessage.addListener((message) => {
       break;
 
     case 'success':
+      _isCapturing = false;
+      setImportButtonsDisabled(false);
       showSuccess({
         notebookId  : message.notebookId || _currentNotebookId,
         showDownload: !!message.showDownload,
@@ -578,6 +612,8 @@ browser.runtime.onMessage.addListener((message) => {
       break;
 
     case 'error':
+      _isCapturing = false;
+      setImportButtonsDisabled(false);
       showError(message.code || 'UNKNOWN', message.detail);
       break;
   }

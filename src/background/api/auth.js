@@ -24,6 +24,9 @@ let _authTabId       = null;   // Tab WebContent ouvert pour le setup
 const ROTATION_INTERVAL_MS = 550000;
 const ROTATION_MIN_GAP_MS  =  60000;
 
+// P1.9 — Compteur d'échecs consécutifs de RotateCookies
+let _rotateFailCount = 0;
+
 // ─────────────────────────────────────────────
 // 1. COLLECTE ET VALIDATION DES COOKIES
 // ─────────────────────────────────────────────
@@ -94,10 +97,25 @@ function validateCookies(cookieMap) {
  * @throws {Error} - AUTH_EXPIRED (HTTP 401/403 ou SNlM0e introuvable), ou erreur réseau.
  */
 async function fetchCSRFTokens(authuserIndex) {
-  const response = await fetch(`${NBLM_URL}?authuser=${authuserIndex}`, {
-    method: 'GET',
-    credentials: 'include',
-  });
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 15000);
+  let response;
+  try {
+    response = await fetch(`${NBLM_URL}?authuser=${authuserIndex}`, {
+      method: 'GET',
+      credentials: 'include',
+      signal: controller.signal,
+    });
+    clearTimeout(timeoutId);
+  } catch (err) {
+    clearTimeout(timeoutId);
+    if (err.name === 'AbortError') {
+      const e = new Error('TIMEOUT');
+      e.code = 'TIMEOUT';
+      throw e;
+    }
+    throw err;
+  }
 
   if (!response.ok) {
     if (response.status === 401 || response.status === 403) {
@@ -138,6 +156,8 @@ async function rotateCookiesIfNeeded() {
   const now = Date.now();
   if (now - _lastRotateTs < ROTATION_MIN_GAP_MS) return;
 
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 10000);
   try {
     await fetch(ROTATE_URL, {
       method: 'POST',
@@ -145,11 +165,23 @@ async function rotateCookiesIfNeeded() {
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded'
       },
-      body: 'continue=https://notebooklm.google.com/'
+      body: 'continue=https://notebooklm.google.com/',
+      signal: controller.signal,
     });
+    clearTimeout(timeoutId);
     _lastRotateTs = Date.now();
+    _rotateFailCount = 0;
   } catch (e) {
-    console.error('[NTC] RotateCookies échoué :', e.message);
+    clearTimeout(timeoutId);
+    _rotateFailCount++;
+    if (e.name === 'AbortError') {
+      console.error('[NTC] RotateCookies timeout (10s)');
+    } else {
+      console.error('[NTC] RotateCookies échoué :', e.message);
+    }
+    if (_rotateFailCount >= 3) {
+      console.error('[NTC] RotateCookies failed ' + _rotateFailCount + ' consecutive times — session may expire soon');
+    }
   }
 }
 
@@ -248,11 +280,22 @@ async function detectGoogleAccounts() {
   const accounts = [];
   for (let index = 0; index < 5; index++) {
     try {
-      const resp = await fetch(`${NBLM_URL}?authuser=${index}`, {
-        method: 'GET',
-        credentials: 'include',
-        redirect: 'manual'
-      });
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000);
+      let resp;
+      try {
+        resp = await fetch(`${NBLM_URL}?authuser=${index}`, {
+          method: 'GET',
+          credentials: 'include',
+          redirect: 'manual',
+          signal: controller.signal,
+        });
+        clearTimeout(timeoutId);
+      } catch (fetchErr) {
+        clearTimeout(timeoutId);
+        if (fetchErr.name === 'AbortError') break; // Timeout → stop probing
+        throw fetchErr;
+      }
 
       if (resp.type === 'opaqueredirect' || resp.status === 302) break;
       if (!resp.ok) break;

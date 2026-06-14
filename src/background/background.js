@@ -25,6 +25,7 @@ let _lastCaptureMdText = null;  // Dernier MD généré (pour téléchargement l
 let _lastCaptureTitle = null;   // Sujet brut du dernier email capturé (nom de téléchargement)
 let _pendingPdfResolve = null;  // Résolution Promise en attente de PDF_READY
 let _pendingPdfReject = null;   // Rejet Promise en attente de CAPTURE_ERROR
+let _captureInProgress = false; // Verrou global : une seule capture à la fois (P1.1a)
 
 // Clés de storage : source unique dans NtcUtils (revue 2026-06-10)
 const STORAGE_KEYS = NtcUtils.STORAGE_KEYS;
@@ -502,42 +503,53 @@ function getRichErrorDetail(err) {
 }
 
 async function handleStartCapture(message) {
-  notifyUI({ status: 'capturing' });
-
-  const cookieMap = await NtcAuth.collectGoogleCookies();
-  const { valid } = NtcAuth.validateCookies(cookieMap);
-  if (!valid) {
-    clearAuthSession();
-    notifyUI({ status: 'error', code: 'AUTH_EXPIRED' });
+  // P1.1a — Verrou global : une seule capture à la fois (PDF, MD, Attachment)
+  if (_captureInProgress) {
+    notifyUI({ status: 'error', code: 'UNKNOWN', detail: browser.i18n.getMessage('errorPdfCaptureInProgress') || 'A capture is already in progress' });
     return;
   }
+  _captureInProgress = true;
 
   try {
-    const tokens = await NtcAuth.fetchCSRFTokens(_activeAuthuserIndex);
-    _csrfToken = tokens.csrfToken;
-  } catch (e) {
-    if (e.code === 'AUTH_EXPIRED') {
-      clearAuthSession();
-    }
-    notifyUI({ status: 'error', code: e.code || 'UNKNOWN', detail: getRichErrorDetail(e) });
-    return;
-  }
+    notifyUI({ status: 'capturing' });
 
-  // Délégation aux sous-handlers selon le format demandé
-  try {
-    switch (message.format) {
-      case 'pdf': await handlePdfCapture(message); break;
-      case 'md': await handleMdCapture(message); break;
-      case 'attachment': await handleAttachmentCapture(message); break;
-      default:
-        notifyUI({ status: 'error', code: 'UNKNOWN' });
-    }
-  } catch (e) {
-    console.error('[NTC] Capture error :', e.message);
-    if (e.code === 'AUTH_EXPIRED') {
+    const cookieMap = await NtcAuth.collectGoogleCookies();
+    const { valid } = NtcAuth.validateCookies(cookieMap);
+    if (!valid) {
       clearAuthSession();
+      notifyUI({ status: 'error', code: 'AUTH_EXPIRED' });
+      return;
     }
-    notifyUI({ status: 'error', code: e.code || 'UNKNOWN', detail: getRichErrorDetail(e) });
+
+    try {
+      const tokens = await NtcAuth.fetchCSRFTokens(_activeAuthuserIndex);
+      _csrfToken = tokens.csrfToken;
+    } catch (e) {
+      if (e.code === 'AUTH_EXPIRED') {
+        clearAuthSession();
+      }
+      notifyUI({ status: 'error', code: e.code || 'UNKNOWN', detail: getRichErrorDetail(e) });
+      return;
+    }
+
+    // Délégation aux sous-handlers selon le format demandé
+    try {
+      switch (message.format) {
+        case 'pdf': await handlePdfCapture(message); break;
+        case 'md': await handleMdCapture(message); break;
+        case 'attachment': await handleAttachmentCapture(message); break;
+        default:
+          notifyUI({ status: 'error', code: 'UNKNOWN' });
+      }
+    } catch (e) {
+      console.error('[NTC] Capture error :', e.message);
+      if (e.code === 'AUTH_EXPIRED') {
+        clearAuthSession();
+      }
+      notifyUI({ status: 'error', code: e.code || 'UNKNOWN', detail: getRichErrorDetail(e) });
+    }
+  } finally {
+    _captureInProgress = false;
   }
 }
 
@@ -661,6 +673,13 @@ async function handlePdfCapture(message) {
       notebookId: message.notebookId,
       showDownload: true
     });
+
+    // P1.7 — Auto-purge des données de capture après 5 minutes
+    setTimeout(() => {
+      _lastCapturePdfB64 = null;
+      _lastCaptureMdText = null;
+      _lastCaptureTitle = null;
+    }, 300000);
   } catch (err) {
     console.error('[NTC-BG] Échec de l\'upload du PDF :', err.message);
     notifyUI({ status: 'error', code: err.code || 'UNKNOWN', detail: getRichErrorDetail(err) });
@@ -731,6 +750,13 @@ async function handleMdCapture(message) {
       notebookId: message.notebookId,
       showDownload: true
     });
+
+    // P1.7 — Auto-purge des données de capture après 5 minutes
+    setTimeout(() => {
+      _lastCapturePdfB64 = null;
+      _lastCaptureMdText = null;
+      _lastCaptureTitle = null;
+    }, 300000);
   } catch (err) {
     console.error('[NTC-BG] \u00c9chec de l\'import Markdown :', err.message);
     notifyUI({ status: 'error', code: err.code || 'UNKNOWN', detail: getRichErrorDetail(err) });
@@ -758,6 +784,12 @@ async function handleAttachmentCapture(message) {
 
     try {
       const fileBlob = await messenger.messages.getAttachmentFile(message.messageId, att.partName);
+
+      // P1.6 — Guard 0-byte files + null
+      if (!fileBlob || fileBlob.size === 0) {
+        errors.push({ name: att.name, error: 'Empty or inaccessible file' });
+        continue;
+      }
       // Remplacer le préfixe ⚡ par [PJ] et enlever les accents du nom de fichier
       let cleanName = (att.name || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '');
       const filename = NtcUtils.sanitizeFilename(`[PJ] ${cleanName}`);
@@ -785,6 +817,13 @@ async function handleAttachmentCapture(message) {
       notebookId: message.notebookId,
       showDownload: false
     });
+
+    // P1.7 — Auto-purge des données de capture après 5 minutes
+    setTimeout(() => {
+      _lastCapturePdfB64 = null;
+      _lastCaptureMdText = null;
+      _lastCaptureTitle = null;
+    }, 300000);
   } else if (errors.length === total) {
     notifyUI({
       status: 'error',
@@ -873,6 +912,10 @@ async function handleDownloadCapture(message) {
   try {
     const downloadId = await browser.downloads.download({ url, filename: `${title}.${ext}` });
     revokeWhenDownloadDone(downloadId, url);
+
+    // P1.7 — Clear capture data after download to free memory
+    if (message.fileType === 'pdf') _lastCapturePdfB64 = null;
+    if (message.fileType === 'md') _lastCaptureMdText = null;
   } catch (err) {
     // Téléchargement refusé/annulé : révoquer immédiatement (audit 2026-06-10)
     URL.revokeObjectURL(url);

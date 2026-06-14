@@ -17,17 +17,17 @@ dist/
 AGENTS.md
 ARCHITECTURE.md
 API-REFERENCE.md
+CHANGELOG.md
 
-# Dev docs (internes)
-spec.md
-plan.md
-tasks.md
+# Dev docs (internes — archivés dans docs/archive/)
+docs/
 
 # Libs obsolètes
 lib/html2pdf.bundle.min.js
 
 # Dev / signing scripts
 sign.sh
+build.sh
 web-ext-config.cjs
 web-ext-artifacts/
 tools/
