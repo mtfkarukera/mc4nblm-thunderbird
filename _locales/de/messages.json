@@ -216,5 +216,87 @@
   "errorCreateNotebook": {
     "message": "Das Notizbuch konnte nicht erstellt werden. Bitte erneut versuchen.",
     "description": "Inline error shown when notebook creation fails"
+  },
+  "mdLabelIntention": {
+    "message": "Forschungsabsicht",
+    "description": "Label for research intention note in Markdown generator"
+  },
+  "mdLabelEmail": {
+    "message": "E-Mail",
+    "description": "Label for email section in Markdown generator"
+  },
+  "mdLabelFrom": {
+    "message": "Von",
+    "description": "Label for sender field in Markdown generator"
+  },
+  "mdLabelSubject": {
+    "message": "Betreff",
+    "description": "Label for subject field in Markdown generator"
+  },
+  "mdLabelDate": {
+    "message": "Datum",
+    "description": "Label for date field in Markdown generator"
+  },
+  "mdContentUnavailable": {
+    "message": "(Inhalt nicht verfügbar)",
+    "description": "Fallback text when email body is empty in Markdown generator"
+  },
+  "pdfLabelIntention": {
+    "message": "FORSCHUNGSABSICHT:",
+    "description": "Header for research intention note in PDF generator"
+  },
+  "pdfLabelEmail": {
+    "message": "=== E-MAIL ===",
+    "description": "Header for email section in PDF generator"
+  },
+  "pdfLabelSubject": {
+    "message": "Betreff:",
+    "description": "Label for subject in PDF generator (padded for alignment)"
+  },
+  "pdfLabelFrom": {
+    "message": "Von    :",
+    "description": "Label for sender in PDF generator (padded for alignment)"
+  },
+  "pdfLabelTo": {
+    "message": "An     :",
+    "description": "Label for recipient in PDF generator (padded for alignment)"
+  },
+  "pdfLabelDate": {
+    "message": "Datum  :",
+    "description": "Label for date in PDF generator (padded for alignment)"
+  },
+  "errorNoAttachmentSelected": {
+    "message": "Keine Anlage ausgewählt.",
+    "description": "Error when attempting to import attachments without checking any"
+  },
+  "errorPdfCaptureInProgress": {
+    "message": "Eine PDF-Erfassung wird bereits ausgeführt.",
+    "description": "Error when attempting a capture while another is running"
+  },
+  "errorAllAttachmentsFailed": {
+    "message": "Alle Anlagen konnten nicht importiert werden: $DETAILS$",
+    "description": "Error message when all attachments fail during import",
+    "placeholders": {
+      "DETAILS": {
+        "content": "$1",
+        "example": "file.pdf (error)"
+      }
+    }
+  },
+  "errorCaptureFailed": {
+    "message": "Erfassung fehlgeschlagen.",
+    "description": "Generic capture error message"
+  },
+  "errorInvalidTitle": {
+    "message": "Ungültiger Titel. Bitte geben Sie einen Titel ein.",
+    "description": "Error code INVALID_TITLE"
+  },
+  "labelNoSubject": {
+    "message": "(kein Betreff)",
+    "description": "Fallback text when email has no subject"
+  },
+  "labelUnknown": {
+    "message": "(unbekannt)",
+    "description": "Fallback text when metadata is unknown"
   }
 }

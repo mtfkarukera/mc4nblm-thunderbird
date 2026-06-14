@@ -216,5 +216,87 @@
   "errorCreateNotebook": {
     "message": "Could not create the notebook. Please try again.",
     "description": "Inline error shown when notebook creation fails"
+  },
+  "mdLabelIntention": {
+    "message": "Research intention",
+    "description": "Label for research intention note in Markdown generator"
+  },
+  "mdLabelEmail": {
+    "message": "Email",
+    "description": "Label for email section in Markdown generator"
+  },
+  "mdLabelFrom": {
+    "message": "From",
+    "description": "Label for sender field in Markdown generator"
+  },
+  "mdLabelSubject": {
+    "message": "Subject",
+    "description": "Label for subject field in Markdown generator"
+  },
+  "mdLabelDate": {
+    "message": "Date",
+    "description": "Label for date field in Markdown generator"
+  },
+  "mdContentUnavailable": {
+    "message": "(content unavailable)",
+    "description": "Fallback text when email body is empty in Markdown generator"
+  },
+  "pdfLabelIntention": {
+    "message": "RESEARCH INTENTION:",
+    "description": "Header for research intention note in PDF generator"
+  },
+  "pdfLabelEmail": {
+    "message": "=== EMAIL ===",
+    "description": "Header for email section in PDF generator"
+  },
+  "pdfLabelSubject": {
+    "message": "Subject:",
+    "description": "Label for subject in PDF generator (padded for alignment)"
+  },
+  "pdfLabelFrom": {
+    "message": "From   :",
+    "description": "Label for sender in PDF generator (padded for alignment)"
+  },
+  "pdfLabelTo": {
+    "message": "To     :",
+    "description": "Label for recipient in PDF generator (padded for alignment)"
+  },
+  "pdfLabelDate": {
+    "message": "Date   :",
+    "description": "Label for date in PDF generator (padded for alignment)"
+  },
+  "errorNoAttachmentSelected": {
+    "message": "No attachment selected.",
+    "description": "Error when attempting to import attachments without checking any"
+  },
+  "errorPdfCaptureInProgress": {
+    "message": "A PDF capture is already in progress.",
+    "description": "Error when attempting a capture while another is running"
+  },
+  "errorAllAttachmentsFailed": {
+    "message": "All attachments failed to import: $DETAILS$",
+    "description": "Error message when all attachments fail during import",
+    "placeholders": {
+      "DETAILS": {
+        "content": "$1",
+        "example": "file.pdf (error)"
+      }
+    }
+  },
+  "errorCaptureFailed": {
+    "message": "Capture failed.",
+    "description": "Generic capture error message"
+  },
+  "errorInvalidTitle": {
+    "message": "Invalid title. Please enter a title.",
+    "description": "Error code INVALID_TITLE"
+  },
+  "labelNoSubject": {
+    "message": "(no subject)",
+    "description": "Fallback text when email has no subject"
+  },
+  "labelUnknown": {
+    "message": "(unknown)",
+    "description": "Fallback text when metadata is unknown"
   }
 }

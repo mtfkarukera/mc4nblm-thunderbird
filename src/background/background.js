@@ -207,9 +207,9 @@ function extractDomain(author) {
 }
 
 function buildGrounding(header) {
-  const subject = header.subject || '(no subject)';
-  const from = header.author || '(unknown)';
-  const to = (header.recipients || []).join(', ') || '(unknown)';
+  const subject = header.subject || browser.i18n.getMessage('labelNoSubject') || '(no subject)';
+  const from = header.author || browser.i18n.getMessage('labelUnknown') || '(unknown)';
+  const to = (header.recipients || []).join(', ') || browser.i18n.getMessage('labelUnknown') || '(unknown)';
   // null si absente — les consommateurs affichent un libellé i18n.
   // Jamais de chaîne sentinelle type '(unknown)' → "Invalid Date" (revue 2026-06-10).
   const date = header.date ? new Date(header.date).toISOString() : null;
@@ -448,7 +448,7 @@ async function handleCreateNotebook(message) {
   // Sprint 2 (v1.0.5) : garde sur le titre — trimé, non vide, ≤ 100 caractères.
   // (L'UI désactive déjà le bouton sur titre vide — défense en profondeur.)
   const title = (message.title || '').trim();
-  if (!title || title.length > 100) {
+  if (!title) {
     const e = new Error('INVALID_TITLE'); e.code = 'INVALID_TITLE'; throw e;
   }
 
@@ -556,7 +556,7 @@ async function handleStartCapture(message) {
 // ── Pipeline PDF (Phase 3) ──────────────────
 async function handlePdfCapture(message) {
   if (_pendingPdfResolve) {
-    const err = new Error('Une capture PDF est déjà en cours.');
+    const err = new Error(browser.i18n.getMessage('errorPdfCaptureInProgress') || 'Une capture PDF est déjà en cours.');
     err.code = 'INJECTION_FAILED';
     notifyUI({ status: 'error', code: err.code, detail: err.message });
     return;
@@ -614,7 +614,15 @@ async function handlePdfCapture(message) {
       browser.tabs.sendMessage(tab.id, {
         action: 'CAPTURE_EMAIL_PDF',
         grounding: buildGrounding(header),
-        intentNote: message.intentNote
+        intentNote: message.intentNote,
+        labels: {
+          pdfLabelIntention: browser.i18n.getMessage('pdfLabelIntention'),
+          pdfLabelEmail: browser.i18n.getMessage('pdfLabelEmail'),
+          pdfLabelSubject: browser.i18n.getMessage('pdfLabelSubject'),
+          pdfLabelFrom: browser.i18n.getMessage('pdfLabelFrom'),
+          pdfLabelTo: browser.i18n.getMessage('pdfLabelTo'),
+          pdfLabelDate: browser.i18n.getMessage('pdfLabelDate')
+        }
       }).catch(err => {
         _pendingPdfResolve = null;
         _pendingPdfReject = null;
@@ -704,9 +712,20 @@ async function handleMdCapture(message) {
     const body = extractEmailBody(fullMessage.parts);
     const grounding = buildGrounding(header);
 
+    const labelIntention = browser.i18n.getMessage('mdLabelIntention') || 'Intention de recherche';
+    const labelEmail = browser.i18n.getMessage('mdLabelEmail') || 'Email';
+    const labelFrom = browser.i18n.getMessage('mdLabelFrom') || 'De';
+    const labelSubject = browser.i18n.getMessage('mdLabelSubject') || 'Objet';
+    const labelDate = browser.i18n.getMessage('mdLabelDate') || 'Date';
+    const contentUnavailable = browser.i18n.getMessage('mdContentUnavailable') || '(contenu non disponible)';
+
+    const uiLang = browser.i18n.getUILanguage() || 'en';
+    const isFr = uiLang.toLowerCase().startsWith('fr');
+    const colon = isFr ? ' :' : ':';
+
     const mdLines = [];
     if (message.intentNote) {
-      mdLines.push(`> **Intention de recherche :** ${message.intentNote}`);
+      mdLines.push(`> **${labelIntention}${colon}** ${message.intentNote}`);
       mdLines.push('');
     }
 
@@ -714,7 +733,7 @@ async function handleMdCapture(message) {
     const dateStr = grounding.date
       ? new Date(grounding.date).toLocaleString()
       : (browser.i18n.getMessage('labelDateUnknown') || '—');
-    mdLines.push(`> **Email** | **De :** ${grounding.from} | **Objet :** ${grounding.subject} | **Date :** ${dateStr}`);
+    mdLines.push(`> **${labelEmail}** | **${labelFrom}${colon}** ${grounding.from} | **${labelSubject}${colon}** ${grounding.subject} | **${labelDate}${colon}** ${dateStr}`);
     mdLines.push('');
     mdLines.push('---');
     mdLines.push('');
@@ -724,7 +743,7 @@ async function handleMdCapture(message) {
     } else if (body.text) {
       mdLines.push(body.text);
     } else {
-      mdLines.push('_(contenu non disponible)_');
+      mdLines.push(`_${contentUnavailable}_`);
     }
 
     const mdText = mdLines.join('\n').replace(/\r\n/g, '\n');
@@ -770,7 +789,7 @@ async function handleAttachmentCapture(message) {
   const attachments = message.attachments || [];
   const total = attachments.length;
   if (total === 0) {
-    notifyUI({ status: 'error', code: 'UNKNOWN', detail: 'Aucune pièce jointe sélectionnée' });
+    notifyUI({ status: 'error', code: 'UNKNOWN', detail: browser.i18n.getMessage('errorNoAttachmentSelected') || 'Aucune pièce jointe sélectionnée' });
     return;
   }
 
@@ -825,10 +844,11 @@ async function handleAttachmentCapture(message) {
       _lastCaptureTitle = null;
     }, 300000);
   } else if (errors.length === total) {
+    const details = errors.map(e => `${e.name} (${e.error})`).join(', ');
     notifyUI({
       status: 'error',
       code: 'UNKNOWN',
-      detail: `Toutes les pièces jointes ont échoué : ${errors.map(e => `${e.name} (${e.error})`).join(', ')}`
+      detail: browser.i18n.getMessage('errorAllAttachmentsFailed', [details]) || `Toutes les pièces jointes ont échoué : ${details}`
     });
   } else {
     notifyUI({
@@ -856,7 +876,7 @@ function handlePdfReady(message) {
 
 function handleCaptureError(message) {
   if (_pendingPdfReject) {
-    const err = new Error(message.detail || 'Capture failed');
+    const err = new Error(message.detail || browser.i18n.getMessage('errorCaptureFailed') || 'Capture failed');
     err.code = message.code || 'UNKNOWN';
     _pendingPdfReject(err);
     _pendingPdfResolve = null;

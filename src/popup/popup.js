@@ -387,6 +387,7 @@ const ERROR_KEYS = {
   NO_EMAIL_DISPLAYED       : 'errorNoEmailDisplayed',
   EMPTY_EMAIL_BODY         : 'errorEmptyEmailBody',
   ATTACHMENT_TOO_LARGE     : 'errorAttachmentTooLarge',
+  INVALID_TITLE            : 'errorInvalidTitle',
   UNKNOWN                  : 'errorUnknown',
 };
 
@@ -711,7 +712,7 @@ async function submitCreateNotebook() {
       return;
     }
     console.error('[NTC-UI] Création carnet échouée :', err.message);
-    let msg = t('errorCreateNotebook');
+    let msg = (code && ERROR_KEYS[code]) ? t(ERROR_KEYS[code]) : t('errorCreateNotebook');
     if (detail) msg += ` (${detail})`;
     setCreateStatus(msg, true);
     input.focus();

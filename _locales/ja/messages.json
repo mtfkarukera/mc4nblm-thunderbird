@@ -216,5 +216,87 @@
   "errorCreateNotebook": {
     "message": "ノートブックを作成できませんでした。もう一度お試しください。",
     "description": "Inline error shown when notebook creation fails"
+  },
+  "mdLabelIntention": {
+    "message": "リサーチの意図",
+    "description": "Label for research intention note in Markdown generator"
+  },
+  "mdLabelEmail": {
+    "message": "メール",
+    "description": "Label for email section in Markdown generator"
+  },
+  "mdLabelFrom": {
+    "message": "差出人",
+    "description": "Label for sender field in Markdown generator"
+  },
+  "mdLabelSubject": {
+    "message": "件名",
+    "description": "Label for subject field in Markdown generator"
+  },
+  "mdLabelDate": {
+    "message": "日付",
+    "description": "Label for date field in Markdown generator"
+  },
+  "mdContentUnavailable": {
+    "message": "(コンテンツは利用できません)",
+    "description": "Fallback text when email body is empty in Markdown generator"
+  },
+  "pdfLabelIntention": {
+    "message": "リサーチの意図 :",
+    "description": "Header for research intention note in PDF generator"
+  },
+  "pdfLabelEmail": {
+    "message": "=== メール ===",
+    "description": "Header for email section in PDF generator"
+  },
+  "pdfLabelSubject": {
+    "message": "件名 :",
+    "description": "Label for subject in PDF generator (padded for alignment)"
+  },
+  "pdfLabelFrom": {
+    "message": "差出人 :",
+    "description": "Label for sender in PDF generator (padded for alignment)"
+  },
+  "pdfLabelTo": {
+    "message": "宛先 :",
+    "description": "Label for recipient in PDF generator (padded for alignment)"
+  },
+  "pdfLabelDate": {
+    "message": "日付 :",
+    "description": "Label for date in PDF generator (padded for alignment)"
+  },
+  "errorNoAttachmentSelected": {
+    "message": "添付ファイルが選択されていません。",
+    "description": "Error when attempting to import attachments without checking any"
+  },
+  "errorPdfCaptureInProgress": {
+    "message": "PDFの取り込みは既に実行中です。",
+    "description": "Error when attempting a capture while another is running"
+  },
+  "errorAllAttachmentsFailed": {
+    "message": "すべての添付ファイルのインポートに失敗しました: $DETAILS$",
+    "description": "Error message when all attachments fail during import",
+    "placeholders": {
+      "DETAILS": {
+        "content": "$1",
+        "example": "file.pdf (error)"
+      }
+    }
+  },
+  "errorCaptureFailed": {
+    "message": "取り込みに失敗しました。",
+    "description": "Generic capture error message"
+  },
+  "errorInvalidTitle": {
+    "message": "無効なタイトルです。タイトルを入力してください。",
+    "description": "Error code INVALID_TITLE"
+  },
+  "labelNoSubject": {
+    "message": "(件名なし)",
+    "description": "Fallback text when email has no subject"
+  },
+  "labelUnknown": {
+    "message": "(不明)",
+    "description": "Fallback text when metadata is unknown"
   }
 }

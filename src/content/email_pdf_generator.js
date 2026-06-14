@@ -8,7 +8,7 @@
 
 var __ntc_pdf_generator = true;
 
-window.__ntc_generate_pdf = function (grounding, intentNote) {
+window.__ntc_generate_pdf = function (grounding, intentNote, labels) {
   return new Promise((resolve, reject) => {
     try {
       const jsPDFClass = (typeof window.jspdf !== 'undefined' && window.jspdf.jsPDF) ? window.jspdf.jsPDF :
@@ -205,7 +205,8 @@ window.__ntc_generate_pdf = function (grounding, intentNote) {
         doc.setFont("Helvetica", "bold");
         doc.setFontSize(10);
         checkPageOverflow(14);
-        doc.text("INTENTION DE RECHERCHE :", margin, y);
+        const intentHeader = (labels && labels.pdfLabelIntention) || "INTENTION DE RECHERCHE :";
+        doc.text(intentHeader, margin, y);
         y += 14;
 
         doc.setFont("Helvetica", "normal");
@@ -221,7 +222,8 @@ window.__ntc_generate_pdf = function (grounding, intentNote) {
       doc.setFont("Helvetica", "bold");
       doc.setFontSize(11);
       checkPageOverflow(15);
-      doc.text("=== EMAIL ===", margin, y);
+      const emailHeader = (labels && labels.pdfLabelEmail) || "=== EMAIL ===";
+      doc.text(emailHeader, margin, y);
       y += 15;
 
       doc.setFont("Helvetica", "normal");
@@ -238,10 +240,10 @@ window.__ntc_generate_pdf = function (grounding, intentNote) {
       }
 
       const metadata = [
-        { label: "Objet :", val: grounding.subject },
-        { label: "De    :", val: grounding.author },
-        { label: "À     :", val: grounding.recipients },
-        { label: "Date  :", val: dateLabel }
+        { label: (labels && labels.pdfLabelSubject) || "Objet :", val: grounding.subject },
+        { label: (labels && labels.pdfLabelFrom) || "De    :", val: grounding.author },
+        { label: (labels && labels.pdfLabelTo) || "À     :", val: grounding.recipients },
+        { label: (labels && labels.pdfLabelDate) || "Date  :", val: dateLabel }
       ];
 
       metadata.forEach(item => {

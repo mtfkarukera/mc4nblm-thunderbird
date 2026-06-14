@@ -41,7 +41,7 @@ if (window.__ntc_email_bridge) {
     }
 
     // Appel de la fonction exposée par email_pdf_generator.js
-    window.__ntc_generate_pdf(message.grounding, message.intentNote)
+    window.__ntc_generate_pdf(message.grounding, message.intentNote, message.labels)
       .then(pdfBase64 => {
         browser.runtime.sendMessage({
           action:    'PDF_READY',
