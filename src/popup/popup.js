@@ -83,6 +83,20 @@ function showState(name) {
       showError('TIMEOUT');
     }, 120000);
   }
+
+  // Déplacement logique du focus d'accessibilité vers l'écran d'état actif
+  const activeId = idMap[name];
+  const activeEl = document.getElementById(activeId);
+  if (activeEl) {
+    const heading = activeEl.querySelector('.state-heading');
+    if (heading) {
+      heading.setAttribute('tabindex', '-1');
+      heading.focus();
+    } else {
+      activeEl.setAttribute('tabindex', '-1');
+      activeEl.focus();
+    }
+  }
 }
 
 /**
@@ -350,6 +364,7 @@ function renderNotebooks(notebooks) {
     // Entrées diagnostic (mode DEBUG) : affichées mais jamais sélectionnables
     // (revue 2026-06-10, bug 6 — défense en profondeur).
     const isDiag = nb.id === '__diag__';
+    li.id = 'nb-option-' + nb.id;
     li.className  = 'notebook-item'
       + (isDiag ? ' diag' : '')
       + (!isDiag && nb.id === _currentNotebookId ? ' selected' : '');
@@ -357,6 +372,7 @@ function renderNotebooks(notebooks) {
     li.dataset.id = nb.id;
     li.textContent = nb.title;
     li.setAttribute('aria-selected', !isDiag && nb.id === _currentNotebookId ? 'true' : 'false');
+    li.tabIndex = -1;
     if (isDiag) {
       li.setAttribute('aria-disabled', 'true');
     } else {
@@ -364,16 +380,55 @@ function renderNotebooks(notebooks) {
     }
     list.appendChild(li);
   });
+
+  // Mettre à jour aria-activedescendant sur la liste si un élément est sélectionné
+  const selectedEl = list.querySelector('.notebook-item.selected');
+  if (selectedEl) {
+    list.setAttribute('aria-activedescendant', selectedEl.id);
+  } else {
+    list.removeAttribute('aria-activedescendant');
+  }
 }
 
 function selectNotebook(id, _title, liEl) {
   if (id === '__diag__') return;  // jamais sélectionnable (bug 6)
   _currentNotebookId = id;
+  const list = document.getElementById('notebook-list');
   document.querySelectorAll('.notebook-item').forEach(el => {
     el.classList.toggle('selected', el === liEl);
     el.setAttribute('aria-selected', el === liEl ? 'true' : 'false');
   });
+  if (liEl) {
+    list.setAttribute('aria-activedescendant', liEl.id);
+  } else {
+    list.removeAttribute('aria-activedescendant');
+  }
   browser.storage.local.set({ [STORAGE_KEYS.LAST_NOTEBOOK]: id });
+}
+
+function handleNotebookListKeyDown(e) {
+  const items = Array.from(document.querySelectorAll('#notebook-list .notebook-item:not(.diag)'));
+  if (items.length === 0) return;
+
+  let currentIndex = items.findIndex(el => el.classList.contains('selected'));
+
+  if (e.key === 'ArrowDown') {
+    e.preventDefault();
+    currentIndex = (currentIndex + 1) % items.length;
+    const nextItem = items[currentIndex];
+    selectNotebook(nextItem.dataset.id, nextItem.textContent, nextItem);
+    nextItem.scrollIntoView({ block: 'nearest' });
+  } else if (e.key === 'ArrowUp') {
+    e.preventDefault();
+    currentIndex = (currentIndex - 1 + items.length) % items.length;
+    const prevItem = items[currentIndex];
+    selectNotebook(prevItem.dataset.id, prevItem.textContent, prevItem);
+    prevItem.scrollIntoView({ block: 'nearest' });
+  } else if (e.key === 'Enter' || e.key === ' ') {
+    e.preventDefault();
+    const btnPdf = document.getElementById('btn-pdf');
+    if (btnPdf) btnPdf.focus();
+  }
 }
 
 // ─────────────────────────────────────────────
@@ -811,6 +866,12 @@ function bindButtons() {
     await browser.runtime.sendMessage({ action: 'SET_ACCOUNT', index });
     await loadNotebooks();
   });
+
+  // Gestion clavier de la liste de carnets
+  const notebookList = document.getElementById('notebook-list');
+  if (notebookList) {
+    notebookList.addEventListener('keydown', handleNotebookListKeyDown);
+  }
 
   // Télécharger — le nom de fichier est géré côté background depuis le sujet
   // brut mémorisé à la capture (revue 2026-06-10, bug 4 : plus de titre

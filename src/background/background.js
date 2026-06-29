@@ -26,6 +26,7 @@ let _lastCaptureTitle = null;   // Sujet brut du dernier email capturé (nom de 
 let _pendingPdfResolve = null;  // Résolution Promise en attente de PDF_READY
 let _pendingPdfReject = null;   // Rejet Promise en attente de CAPTURE_ERROR
 let _captureInProgress = false; // Verrou global : une seule capture à la fois (P1.1a)
+let _purgeTimerId = null;      // Identifiant du timer de purge automatique
 
 // Clés de storage : source unique dans NtcUtils (revue 2026-06-10)
 const STORAGE_KEYS = NtcUtils.STORAGE_KEYS;
@@ -531,6 +532,7 @@ async function handleStartCapture(message) {
     return;
   }
   _captureInProgress = true;
+  cancelPurge();
 
   try {
     notifyUI({ status: 'capturing' });
@@ -686,11 +688,7 @@ async function handlePdfCapture(message) {
     });
 
     // P1.7 — Auto-purge des données de capture après 5 minutes
-    setTimeout(() => {
-      _lastCapturePdfB64 = null;
-      _lastCaptureMdText = null;
-      _lastCaptureTitle = null;
-    }, 300000);
+    schedulePurge();
   } catch (err) {
     console.error('[NTC-BG] Échec de l\'upload du PDF :', err.message);
     notifyUI({ status: 'error', code: err.code || 'UNKNOWN', detail: getRichErrorDetail(err) });
@@ -774,11 +772,7 @@ async function handleMdCapture(message) {
     });
 
     // P1.7 — Auto-purge des données de capture après 5 minutes
-    setTimeout(() => {
-      _lastCapturePdfB64 = null;
-      _lastCaptureMdText = null;
-      _lastCaptureTitle = null;
-    }, 300000);
+    schedulePurge();
   } catch (err) {
     console.error('[NTC-BG] \u00c9chec de l\'import Markdown :', err.message);
     notifyUI({ status: 'error', code: err.code || 'UNKNOWN', detail: getRichErrorDetail(err) });
@@ -841,11 +835,7 @@ async function handleAttachmentCapture(message) {
     });
 
     // P1.7 — Auto-purge des données de capture après 5 minutes
-    setTimeout(() => {
-      _lastCapturePdfB64 = null;
-      _lastCaptureMdText = null;
-      _lastCaptureTitle = null;
-    }, 300000);
+    schedulePurge();
   } else if (errors.length === total) {
     const details = errors.map(e => `${e.name} (${e.error})`).join(', ');
     notifyUI({
@@ -944,6 +934,23 @@ async function handleDownloadCapture(message) {
     // Téléchargement refusé/annulé : révoquer immédiatement (audit 2026-06-10)
     URL.revokeObjectURL(url);
     console.error('[NTC] Téléchargement échoué :', err.message);
+  }
+}
+
+function schedulePurge() {
+  if (_purgeTimerId) clearTimeout(_purgeTimerId);
+  _purgeTimerId = setTimeout(() => {
+    _lastCapturePdfB64 = null;
+    _lastCaptureMdText = null;
+    _lastCaptureTitle = null;
+    _purgeTimerId = null;
+  }, 300000);
+}
+
+function cancelPurge() {
+  if (_purgeTimerId) {
+    clearTimeout(_purgeTimerId);
+    _purgeTimerId = null;
   }
 }
 

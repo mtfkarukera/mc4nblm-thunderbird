@@ -34,7 +34,13 @@
 
   --c-text:          #e2e8f0;
   --c-text-secondary: #94a3b8;
-  --c-text-muted:    #64748b;
+  --c-text-muted:    #8fa1b5; /* Corrigé pour le contraste WCAG AA (> 4.5:1) */
+
+  /* Survol des boutons d'import */
+  --c-hover-pdf:      #ff6b6b;
+  --c-hover-pdf-glow: rgba(255, 107, 107, 0.20);
+  --c-hover-md:       #00f0ff;
+  --c-hover-md-glow:  rgba(0, 240, 255, 0.20);
 
   /* Espacement */
   --sp-xs:  4px;
@@ -71,7 +77,13 @@
     --c-primary-text:   #ffffff;      /* Texte blanc pour fond bleu primaire */
     --c-text:           #0f172a;
     --c-text-secondary: #475569;
-    --c-text-muted:     #94a3b8;
+    --c-text-muted:     #64748b; /* Corrigé pour le contraste WCAG AA (> 4.5:1) */
+
+    /* Survol des boutons d'import (optimisé pour le contraste) */
+    --c-hover-pdf:      #c53030;      /* Rouge brique bien contrasté */
+    --c-hover-pdf-glow: rgba(197, 48, 48, 0.15);
+    --c-hover-md:       #0369a1;      /* Bleu océan/ciel contrasté */
+    --c-hover-md-glow:  rgba(3, 105, 161, 0.15);
     
     /* Couleurs de statut plus sombres pour meilleur contraste sur fond clair (P4.6) */
     --c-success:        #2f855a;      /* Vert forêt */
@@ -102,7 +114,7 @@ body {
   font-size: 13px;
   line-height: 1.5;
   color: var(--c-text);
-  background: var(--c-bg);
+  background: var(--c-bg) radial-gradient(circle at top right, rgba(139, 92, 246, 0.05), transparent 160px);
   width: 340px;
   min-height: 200px;
   padding: var(--sp-lg);
@@ -286,7 +298,7 @@ body {
   cursor: pointer;
   font-size: 12px;
   color: var(--c-text);
-  transition: background var(--transition);
+  transition: background var(--transition), transform var(--transition), color var(--transition);
   user-select: none;
   display: flex;
   align-items: center;
@@ -295,6 +307,13 @@ body {
 
 .notebook-item:hover {
   background: var(--c-bg-glass-hover);
+  transform: translateX(4px);
+}
+
+.notebook-list:focus-visible {
+  outline: 2px solid var(--c-primary);
+  outline-offset: -1px;
+  border-radius: var(--radius-sm);
 }
 
 .notebook-item.selected {
@@ -352,11 +371,12 @@ body {
   font-size: 12px;
   color: var(--c-text);
   cursor: pointer;
-  transition: background var(--transition);
+  transition: background var(--transition), transform var(--transition);
 }
 
 .attachment-item:hover {
   background: var(--c-bg-glass-hover);
+  transform: translateX(4px);
 }
 
 .attachment-item input[type="checkbox"] {
@@ -505,19 +525,29 @@ body {
 
 .btn-import:hover {
   background: var(--c-bg-glass-hover);
-  border-color: var(--c-primary);
-  color: var(--c-primary);
   transform: translateY(-1px);
-  box-shadow: var(--shadow-glow);
+}
+
+.btn-import[data-format="pdf"]:hover {
+  border-color: var(--c-hover-pdf);
+  color: var(--c-hover-pdf);
+  box-shadow: 0 0 12px var(--c-hover-pdf-glow);
+}
+
+.btn-import[data-format="md"]:hover {
+  border-color: var(--c-hover-md);
+  color: var(--c-hover-md);
+  box-shadow: 0 0 12px var(--c-hover-md-glow);
 }
 
 /* ── Spinner ─────────────────────────────────────────────────────────── */
 .spinner {
   width: 32px;
   height: 32px;
-  border: 3px solid var(--c-border);
-  border-top-color: var(--c-primary);
   border-radius: 50%;
+  background: conic-gradient(from 0deg, transparent 30%, var(--c-primary));
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 4px), #000 0);
+  mask: radial-gradient(farthest-side, transparent calc(100% - 4px), #000 0);
   animation: spin 0.8s linear infinite;
   margin: 0 auto;
 }
@@ -555,13 +585,6 @@ body {
   animation: popIn 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
-.success-icon {
-  font-size: 24px;
-  font-weight: bold;
-  color: var(--c-success);
-  line-height: 1;
-}
-
 .error-circle {
   width: 52px;
   height: 52px;
@@ -576,11 +599,69 @@ body {
   animation: popIn 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
-.error-icon {
-  font-size: 22px;
-  font-weight: bold;
-  color: var(--c-error);
-  line-height: 1;
+.success-svg {
+  width: 28px;
+  height: 28px;
+  stroke: var(--c-success);
+  stroke-width: 4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.success-svg-circle {
+  stroke-dasharray: 166;
+  stroke-dashoffset: 166;
+  stroke-width: 4;
+  stroke-miterlimit: 10;
+  stroke: var(--c-success);
+  fill: none;
+  animation: strokeCircle 0.6s cubic-bezier(0.65, 0, 0.45, 1) forwards;
+}
+
+.success-svg-check {
+  transform-origin: 50% 50%;
+  stroke-dasharray: 48;
+  stroke-dashoffset: 48;
+  animation: strokeCheck 0.3s cubic-bezier(0.65, 0, 0.45, 1) 0.4s forwards;
+}
+
+.error-svg {
+  width: 28px;
+  height: 28px;
+  stroke: var(--c-error);
+  stroke-width: 4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.error-svg-circle {
+  stroke-dasharray: 166;
+  stroke-dashoffset: 166;
+  stroke-width: 4;
+  stroke-miterlimit: 10;
+  stroke: var(--c-error);
+  fill: none;
+  animation: strokeCircle 0.6s cubic-bezier(0.65, 0, 0.45, 1) forwards;
+}
+
+.error-svg-line1 {
+  stroke-dasharray: 48;
+  stroke-dashoffset: 48;
+  animation: strokeCheck 0.3s cubic-bezier(0.65, 0, 0.45, 1) 0.3s forwards;
+}
+
+.error-svg-line2 {
+  stroke-dasharray: 48;
+  stroke-dashoffset: 48;
+  animation: strokeCheck 0.3s cubic-bezier(0.65, 0, 0.45, 1) 0.5s forwards;
+}
+
+@keyframes strokeCircle {
+  100% { stroke-dashoffset: 0; }
+}
+
+@keyframes strokeCheck {
+  100% { stroke-dashoffset: 0; }
 }
 
 @keyframes popIn {
@@ -613,10 +694,17 @@ body {
 
 .progress-bar-fill {
   height: 100%;
-  background: var(--c-primary);
+  background: linear-gradient(90deg, var(--c-primary), var(--c-primary-dark), var(--c-primary));
+  background-size: 200% 100%;
   border-radius: 2px;
   width: 0%;
   transition: width 0.3s ease;
+  animation: shimmer 1.5s infinite linear;
+}
+
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
 }
 
 .progress-label {
@@ -677,4 +765,47 @@ body {
 ::-webkit-scrollbar-thumb {
   background: var(--c-border);
   border-radius: 3px;
+}
+
+/* ── Accessibilité ───────────────────────────────────────────────────── */
+.visually-hidden {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+}
+
+/* ── Apparition progressive en cascade ───────────────────────────────── */
+.state-ready .email-meta {
+  animation: slideIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation-delay: 0.05s;
+  opacity: 0;
+}
+
+.state-ready .section:nth-of-type(1) {
+  animation: slideIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation-delay: 0.1s;
+  opacity: 0;
+}
+
+.state-ready .section:nth-of-type(2) {
+  animation: slideIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation-delay: 0.15s;
+  opacity: 0;
+}
+
+.state-ready .btn-group {
+  animation: slideIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation-delay: 0.2s;
+  opacity: 0;
+}
+
+@keyframes slideIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
 }

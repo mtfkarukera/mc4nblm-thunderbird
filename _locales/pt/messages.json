@@ -298,5 +298,29 @@
   "labelUnknown": {
     "message": "(desconhecido)",
     "description": "Fallback text when metadata is unknown"
+  },
+  "stateLoadingHeading": {
+    "message": "Carregando",
+    "description": "Accessible heading for loading state"
+  },
+  "stateReadyHeading": {
+    "message": "Selecionar e importar",
+    "description": "Accessible heading for ready state"
+  },
+  "stateCapturingHeading": {
+    "message": "Importando",
+    "description": "Accessible heading for capturing state"
+  },
+  "stateSuccessHeading": {
+    "message": "Importação bem-sucedida",
+    "description": "Accessible heading for success state"
+  },
+  "stateErrorHeading": {
+    "message": "Erro de importação",
+    "description": "Accessible heading for error state"
+  },
+  "createNotebookLabel": {
+    "message": "Nome do novo caderno",
+    "description": "Accessible label for create notebook input"
   }
 }

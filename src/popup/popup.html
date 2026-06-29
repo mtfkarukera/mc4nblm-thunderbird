@@ -27,6 +27,7 @@
        Affiché pendant les requêtes async.
   ════════════════════════════════════════════════════ -->
   <section id="state-loading" class="state hidden" aria-live="polite" aria-busy="true">
+    <h2 class="state-heading visually-hidden" data-i18n="stateLoadingHeading"></h2>
     <div class="spinner" aria-hidden="true"></div>
     <p class="state-body" data-i18n="stateLoading"></p>
   </section>
@@ -36,6 +37,7 @@
        Affichage des métadonnées email + sélecteur carnet + boutons d'import.
   ════════════════════════════════════════════════════ -->
   <section id="state-ready" class="state hidden" aria-live="polite">
+    <h2 class="state-heading visually-hidden" data-i18n="stateReadyHeading"></h2>
 
     <!-- Métadonnées email -->
     <div class="email-meta glass">
@@ -55,16 +57,18 @@
 
     <!-- Sélecteur de carnet -->
     <div class="section">
-      <label class="section-label" data-i18n="labelNotebook"></label>
+      <label class="section-label" for="notebook-search" data-i18n="labelNotebook"></label>
       <div class="notebook-search-row">
         <input id="notebook-search" type="search"
                data-i18n-placeholder="placeholderSearch"
-               class="input-search" autocomplete="off" />
+               class="input-search" autocomplete="off"
+               aria-controls="notebook-list" aria-haspopup="listbox" />
         <button id="btn-create-notebook" class="btn btn-icon" title="" data-i18n-title="btnCreateNotebook">+</button>
       </div>
       <!-- Création de carnet inline — sprint 2 v1.0.5 (spec §5.3.1).
            ⚠️ window.prompt est interdit dans les popups TB (AGENTS.md §10). -->
       <div id="create-notebook-row" class="notebook-search-row hidden">
+        <label for="create-notebook-name" class="visually-hidden" data-i18n="createNotebookLabel"></label>
         <input id="create-notebook-name" type="text" maxlength="100"
                data-i18n-placeholder="createNotebookPlaceholder"
                class="input-search" autocomplete="off" />
@@ -72,7 +76,7 @@
         <button id="btn-create-cancel" class="btn btn-icon" title="" data-i18n-title="btnCreateCancel">✕</button>
       </div>
       <p id="create-notebook-status" class="create-status hidden" aria-live="polite"></p>
-      <ul id="notebook-list" class="notebook-list" role="listbox" aria-label="Notebooks"></ul>
+      <ul id="notebook-list" class="notebook-list" role="listbox" aria-label="Notebooks" tabindex="0"></ul>
     </div>
 
     <!-- Note d'intention (masquée pour les PJ) -->
@@ -91,8 +95,8 @@
 
     <!-- Section Pièces Jointes (conditionnelle) -->
     <div id="attachments-section" class="section hidden">
-      <label class="section-label" data-i18n="labelAttachments"></label>
-      <ul id="attachment-list" class="attachment-list"></ul>
+      <label id="attachments-section-label" class="section-label" data-i18n="labelAttachments"></label>
+      <ul id="attachment-list" class="attachment-list" aria-labelledby="attachments-section-label"></ul>
       <button id="btn-import-attachments" class="btn btn-primary hidden" disabled>
         <!-- Contenu mis à jour dynamiquement par onAttachmentCheckboxChange() -->
       </button>
@@ -111,6 +115,7 @@
        Affiché pendant la génération / l'upload.
   ════════════════════════════════════════════════════ -->
   <section id="state-capturing" class="state hidden" aria-live="polite" aria-busy="true">
+    <h2 class="state-heading visually-hidden" data-i18n="stateCapturingHeading"></h2>
     <div class="spinner" aria-hidden="true"></div>
     <p id="capturing-status" class="state-body" data-i18n="statusCapturing"></p>
     <div id="batch-progress" class="batch-progress hidden">
@@ -126,8 +131,12 @@
        Import terminé avec succès.
   ════════════════════════════════════════════════════ -->
   <section id="state-success" class="state hidden" aria-live="polite">
+    <h2 class="state-heading visually-hidden" data-i18n="stateSuccessHeading"></h2>
     <div class="success-circle" aria-hidden="true">
-      <div class="success-icon">✓</div>
+      <svg class="success-svg" viewBox="0 0 52 52">
+        <circle class="success-svg-circle" cx="26" cy="26" r="25" fill="none" />
+        <path class="success-svg-check" fill="none" d="M14.1 27.2l7.1 7.2 16.7-16.8" />
+      </svg>
     </div>
     <p class="state-body" data-i18n="statusSuccess"></p>
     <div id="warnings-container" class="warnings hidden"></div>
@@ -144,8 +153,13 @@
        Affiché en cas d'erreur.
   ════════════════════════════════════════════════════ -->
   <section id="state-error" class="state hidden" aria-live="assertive">
+    <h2 class="state-heading visually-hidden" data-i18n="stateErrorHeading"></h2>
     <div class="error-circle" aria-hidden="true">
-      <div class="error-icon">✕</div>
+      <svg class="error-svg" viewBox="0 0 52 52">
+        <circle class="error-svg-circle" cx="26" cy="26" r="25" fill="none" />
+        <path class="error-svg-line1" fill="none" d="M16 16l20 20" />
+        <path class="error-svg-line2" fill="none" d="M36 16L16 36" />
+      </svg>
     </div>
     <p id="error-message" class="state-body error-text"></p>
     <button id="btn-reconnect" class="btn btn-primary hidden" data-i18n="btnReconnect"></button>

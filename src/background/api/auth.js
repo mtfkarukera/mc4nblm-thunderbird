@@ -5,7 +5,8 @@
 // ⚠️ Ne jamais stocker les valeurs de cookies dans browser.storage.local.
 // ⚠️ Toujours les relire depuis le cookie store Gecko via browser.cookies.getAll().
 
-'use strict';
+(function() {
+  'use strict';
 
 const NBLM_URL       = 'https://notebooklm.google.com/';
 const ROTATE_URL     = 'https://accounts.google.com/RotateCookies';
@@ -320,8 +321,7 @@ async function detectGoogleAccounts() {
 }
 
 // Exposition globale (MV2 — background scripts partagent le même scope global)
-// eslint-disable-next-line no-unused-vars
-var NtcAuth = {
+window.NtcAuth = {
   collectGoogleCookies,
   validateCookies,
   fetchCSRFTokens,
@@ -331,3 +331,4 @@ var NtcAuth = {
   openAuthWebContentTab,
   detectGoogleAccounts,
 };
+})();

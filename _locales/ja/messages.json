@@ -298,5 +298,29 @@
   "labelUnknown": {
     "message": "(不明)",
     "description": "Fallback text when metadata is unknown"
+  },
+  "stateLoadingHeading": {
+    "message": "読み込み中",
+    "description": "Accessible heading for loading state"
+  },
+  "stateReadyHeading": {
+    "message": "選択とインポート",
+    "description": "Accessible heading for ready state"
+  },
+  "stateCapturingHeading": {
+    "message": "インポート中",
+    "description": "Accessible heading for capturing state"
+  },
+  "stateSuccessHeading": {
+    "message": "インポート成功",
+    "description": "Accessible heading for success state"
+  },
+  "stateErrorHeading": {
+    "message": "インポートエラー",
+    "description": "Accessible heading for error state"
+  },
+  "createNotebookLabel": {
+    "message": "新しいノートブックの名前",
+    "description": "Accessible label for create notebook input"
   }
 }

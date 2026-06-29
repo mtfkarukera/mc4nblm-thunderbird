@@ -6,7 +6,8 @@
 //
 // Référence : API-REFERENCE.md §2, §3, §4, §5, §6
 
-'use strict';
+(function() {
+  'use strict';
 
 const NBLM_BATCH_URL = 'https://notebooklm.google.com/_/LabsTailwindUi/data/batchexecute';
 
@@ -481,6 +482,9 @@ async function batchExecute(rpcId, params, csrfToken, authuserIndex) {
     return result;
   } catch (err) {
     _lastError = 'parse_err: ' + err.message;
+    if (!NtcUtils.DEBUG) {
+      _lastRawText = '';
+    }
     throw err;
   }
 }
@@ -790,11 +794,11 @@ function getLastDebugInfo() {
 }
 
 // Exposition globale (MV2 — background scripts partagent le même scope global)
-// eslint-disable-next-line no-unused-vars
-var NtcRpc = {
+window.NtcRpc = {
   listNotebooks,
   createNotebook,
   addTextSource,
   uploadFileSource,
   getLastDebugInfo,
 };
+})();

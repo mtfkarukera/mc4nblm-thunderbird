@@ -298,5 +298,29 @@
   "labelUnknown": {
     "message": "(unbekannt)",
     "description": "Fallback text when metadata is unknown"
+  },
+  "stateLoadingHeading": {
+    "message": "Wird geladen",
+    "description": "Accessible heading for loading state"
+  },
+  "stateReadyHeading": {
+    "message": "Auswählen und Importieren",
+    "description": "Accessible heading for ready state"
+  },
+  "stateCapturingHeading": {
+    "message": "Importieren",
+    "description": "Accessible heading for capturing state"
+  },
+  "stateSuccessHeading": {
+    "message": "Import erfolgreich",
+    "description": "Accessible heading for success state"
+  },
+  "stateErrorHeading": {
+    "message": "Importfehler",
+    "description": "Accessible heading for error state"
+  },
+  "createNotebookLabel": {
+    "message": "Name des neuen Notizbuchs",
+    "description": "Accessible label for create notebook input"
   }
 }

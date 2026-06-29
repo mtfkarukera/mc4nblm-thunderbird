@@ -298,5 +298,29 @@
   "labelUnknown": {
     "message": "(không xác định)",
     "description": "Fallback text when metadata is unknown"
+  },
+  "stateLoadingHeading": {
+    "message": "Đang tải",
+    "description": "Accessible heading for loading state"
+  },
+  "stateReadyHeading": {
+    "message": "Chọn và nhập",
+    "description": "Accessible heading for ready state"
+  },
+  "stateCapturingHeading": {
+    "message": "Đang nhập",
+    "description": "Accessible heading for capturing state"
+  },
+  "stateSuccessHeading": {
+    "message": "Nhập thành công",
+    "description": "Accessible heading for success state"
+  },
+  "stateErrorHeading": {
+    "message": "Lỗi nhập",
+    "description": "Accessible heading for error state"
+  },
+  "createNotebookLabel": {
+    "message": "Tên sổ tay mới",
+    "description": "Accessible label for create notebook input"
   }
 }
