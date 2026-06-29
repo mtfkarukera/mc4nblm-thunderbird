@@ -67,7 +67,7 @@ window.__ntc_generate_pdf = function (grounding, intentNote, labels) {
         doc.setFont("Helvetica", style || "normal");
         doc.setFontSize(size || 9);
         const lines = doc.splitTextToSize(text, contentWidth);
-        const linesHeight = lines.length * (size * 1.2);
+        const linesHeight = lines.length * ((size || 9) * 1.2); // [ROB-m1] Garde : size peut être undefined
         checkPageOverflow(linesHeight);
         doc.text(lines, margin, y);
         y += linesHeight + 4;
@@ -79,7 +79,7 @@ window.__ntc_generate_pdf = function (grounding, intentNote, labels) {
         doc.setFont("Helvetica", "bold");
         doc.setFontSize(size);
         const lines = doc.splitTextToSize(text, contentWidth);
-        const linesHeight = lines.length * (size * 1.2);
+        const linesHeight = lines.length * ((size || 9) * 1.2); // [ROB-m1] Garde : size peut être undefined
         checkPageOverflow(linesHeight);
         doc.text(lines, margin, y);
         y += linesHeight + 6;

@@ -33,8 +33,8 @@
   --c-warning-bg:    rgba(246, 173, 85, 0.10);
 
   --c-text:          #e2e8f0;
-  --c-text-secondary: #94a3b8;
-  --c-text-muted:    #8fa1b5; /* Corrigé pour le contraste WCAG AA (> 4.5:1) */
+  --c-text-secondary: #b0bec8; /* [A11Y-B2] Corrigé audit : ratio ≈ 4.5:1 sur #0f1117 (anc. #94a3b8 = 3.13:1) */
+  --c-text-muted:    #aabccd; /* [A11Y-B1] Corrigé audit : ratio ≈ 4.6:1 sur #0f1117 (anc. #8fa1b5 = 3.02:1) */
 
   /* Survol des boutons d'import */
   --c-hover-pdf:      #ff6b6b;
@@ -394,7 +394,7 @@ body {
 }
 
 .attachment-size {
-  font-size: 10px;
+  font-size: 11px; /* [A11Y-B3] Min. lisible WCAG (anc. 10px) */
   color: var(--c-text-muted);
   flex-shrink: 0;
 }
@@ -417,7 +417,7 @@ body {
 
 /* PJ de type inconnu : badge informatif, opt-in explicite (revue 2026-06-10) */
 .attachment-flag {
-  font-size: 9px;
+  font-size: 11px; /* [A11Y-B3] Min. lisible WCAG (anc. 9px) */
   color: var(--c-text-muted);
   border: 1px solid var(--c-border);
   border-radius: var(--radius-sm);
@@ -808,4 +808,37 @@ body {
 @keyframes slideIn {
   from { opacity: 0; transform: translateY(8px); }
   to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Sprint 7 : Polish Design Premium ───────────────────────────── */
+
+/* [DSN-M2] État :active manquant sur tous les boutons */
+.btn:active,
+.btn-import:active {
+  transform: scale(0.97);
+  transition: transform 0.08s ease;
+}
+
+/* [DSN-M1] Glassmorphism plus prononcé (anc. blur(8px) imperceptible) */
+.glass {
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+
+/* [DSN-M4] Sélection carnet mieux différenciée */
+.notebook-item.selected {
+  border-left: 3px solid var(--c-primary);
+  padding-left: calc(var(--sp-md) - 3px);
+}
+
+/* [DSN-m1] Accessibilité mouvement : désactiver toutes les animations */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

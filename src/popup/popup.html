@@ -63,7 +63,8 @@
                data-i18n-placeholder="placeholderSearch"
                class="input-search" autocomplete="off"
                aria-controls="notebook-list" aria-haspopup="listbox" />
-        <button id="btn-create-notebook" class="btn btn-icon" title="" data-i18n-title="btnCreateNotebook">+</button>
+        <button id="btn-create-notebook" class="btn btn-icon"
+                aria-label="" data-i18n-aria-label="btnCreateNotebook">+</button>
       </div>
       <!-- Création de carnet inline — sprint 2 v1.0.5 (spec §5.3.1).
            ⚠️ window.prompt est interdit dans les popups TB (AGENTS.md §10). -->
@@ -72,8 +73,10 @@
         <input id="create-notebook-name" type="text" maxlength="100"
                data-i18n-placeholder="createNotebookPlaceholder"
                class="input-search" autocomplete="off" />
-        <button id="btn-create-confirm" class="btn btn-icon" title="" data-i18n-title="btnCreateConfirm" disabled>✓</button>
-        <button id="btn-create-cancel" class="btn btn-icon" title="" data-i18n-title="btnCreateCancel">✕</button>
+        <button id="btn-create-confirm" class="btn btn-icon"
+                aria-label="" data-i18n-aria-label="btnCreateConfirm" disabled>✓</button>
+        <button id="btn-create-cancel" class="btn btn-icon"
+                aria-label="" data-i18n-aria-label="btnCreateCancel">✕</button>
       </div>
       <p id="create-notebook-status" class="create-status hidden" aria-live="polite"></p>
       <ul id="notebook-list" class="notebook-list" role="listbox" aria-label="Notebooks" tabindex="0"></ul>
@@ -119,7 +122,9 @@
     <div class="spinner" aria-hidden="true"></div>
     <p id="capturing-status" class="state-body" data-i18n="statusCapturing"></p>
     <div id="batch-progress" class="batch-progress hidden">
-      <div class="progress-bar-track">
+      <div class="progress-bar-track"
+           role="progressbar" aria-label="" data-i18n-aria-label="labelProgressbar"
+           aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
         <div id="progress-bar-fill" class="progress-bar-fill"></div>
       </div>
       <p id="batch-progress-label" class="progress-label"></p>
@@ -141,8 +146,9 @@
     <p class="state-body" data-i18n="statusSuccess"></p>
     <div id="warnings-container" class="warnings hidden"></div>
     <div class="action-row">
-      <a id="btn-open-notebook" class="btn btn-primary" target="_blank" rel="noopener noreferrer"
-         data-i18n="btnOpenNotebook"></a>
+      <!-- [A11Y-B5] Converti de <a> en <button> — un <a> avec href asynchrone n'est pas focusable avant résolution -->
+      <button id="btn-open-notebook" class="btn btn-primary"
+              data-i18n="btnOpenNotebook"></button>
       <button id="btn-download" class="btn btn-secondary hidden" data-i18n="btnDownload"></button>
     </div>
     <button id="btn-new-import" class="btn btn-ghost" data-i18n="btnNewImport"></button>

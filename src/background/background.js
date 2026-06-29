@@ -27,6 +27,7 @@ let _pendingPdfResolve = null;  // Résolution Promise en attente de PDF_READY
 let _pendingPdfReject = null;   // Rejet Promise en attente de CAPTURE_ERROR
 let _captureInProgress = false; // Verrou global : une seule capture à la fois (P1.1a)
 let _purgeTimerId = null;      // Identifiant du timer de purge automatique
+let _pdfTimeoutId = null;      // [ROB-B1] Identifiant du timeout de sécurité PDF (30s)
 
 // Clés de storage : source unique dans NtcUtils (revue 2026-06-10)
 const STORAGE_KEYS = NtcUtils.STORAGE_KEYS;
@@ -84,7 +85,7 @@ const EXT_TO_MIME = {
   'aif': 'audio/x-aiff',
   'mp4': 'video/mp4',
   'mpeg': 'video/mpeg',
-  'mpg': 'video/bold-italic',
+  'mpg': 'video/mpeg',          // [SEC-M3] Corrigé (était 'video/bold-italic' par erreur)
   'mov': 'video/quicktime',
   'avi': 'video/avi',
   'flv': 'video/x-flv',
@@ -498,8 +499,14 @@ async function handleGetAccounts() {
 }
 
 async function handleSetAccount(message) {
-  _activeAuthuserIndex = message.index;
-  await browser.storage.local.set({ [STORAGE_KEYS.ACTIVE_AUTHUSER]: message.index });
+  // [SEC-M2] Valider l'index avant application — NaN, négatif ou > 4 serait propagé dans les URLs RPC
+  const index = message.index;
+  if (!Number.isInteger(index) || index < 0 || index > 4) {
+    console.error('[NTC-BG] SET_ACCOUNT : index invalide :', index);
+    return { error: 'INVALID_ACCOUNT_INDEX' };
+  }
+  _activeAuthuserIndex = index;
+  await browser.storage.local.set({ [STORAGE_KEYS.ACTIVE_AUTHUSER]: index });
   return { ok: true };
 }
 
@@ -623,27 +630,42 @@ async function handlePdfCapture(message) {
       _pendingPdfResolve = { resolve, captureId };
       _pendingPdfReject = { reject, captureId };
 
-      browser.tabs.sendMessage(tab.id, {
-        action: 'CAPTURE_EMAIL_PDF',
-        captureId,
-        grounding: buildGrounding(header),
-        intentNote: message.intentNote,
-        labels: {
-          pdfLabelIntention: browser.i18n.getMessage('pdfLabelIntention'),
-          pdfLabelEmail: browser.i18n.getMessage('pdfLabelEmail'),
-          pdfLabelSubject: browser.i18n.getMessage('pdfLabelSubject'),
-          pdfLabelFrom: browser.i18n.getMessage('pdfLabelFrom'),
-          pdfLabelTo: browser.i18n.getMessage('pdfLabelTo'),
-          pdfLabelDate: browser.i18n.getMessage('pdfLabelDate')
-        }
-      }).catch(err => {
+      // [ROB-B2] Utiliser try/catch pour que les exceptions synchrones de sendMessage
+      // rejettent bien la Promise parente (le .catch() async ne couvre pas ce cas)
+      try {
+        browser.tabs.sendMessage(tab.id, {
+          action: 'CAPTURE_EMAIL_PDF',
+          captureId,
+          grounding: buildGrounding(header),
+          intentNote: message.intentNote,
+          labels: {
+            pdfLabelIntention: browser.i18n.getMessage('pdfLabelIntention'),
+            pdfLabelEmail: browser.i18n.getMessage('pdfLabelEmail'),
+            pdfLabelSubject: browser.i18n.getMessage('pdfLabelSubject'),
+            pdfLabelFrom: browser.i18n.getMessage('pdfLabelFrom'),
+            pdfLabelTo: browser.i18n.getMessage('pdfLabelTo'),
+            pdfLabelDate: browser.i18n.getMessage('pdfLabelDate')
+          }
+        }).catch(err => {
+          _pendingPdfResolve = null;
+          _pendingPdfReject = null;
+          clearTimeout(_pdfTimeoutId); // [ROB-B1] Annuler le timeout si sendMessage échoue
+          _pdfTimeoutId = null;
+          reject(err);
+        });
+      } catch (syncErr) {
+        // [ROB-B2] Exception synchrone (ex : onglet fermé avant l'envoi)
         _pendingPdfResolve = null;
         _pendingPdfReject = null;
-        reject(err);
-      });
+        clearTimeout(_pdfTimeoutId);
+        _pdfTimeoutId = null;
+        reject(syncErr);
+        return;
+      }
 
-      // Timeout de sécurité (30s)
-      setTimeout(() => {
+      // [ROB-B1] Timeout de sécurité (30s) — stocké pour pouvoir être annulé
+      _pdfTimeoutId = setTimeout(() => {
+        _pdfTimeoutId = null;
         if (_pendingPdfResolve && _pendingPdfResolve.captureId === captureId) {
           _pendingPdfResolve = null;
           _pendingPdfReject = null;
@@ -692,6 +714,8 @@ async function handlePdfCapture(message) {
   } catch (err) {
     console.error('[NTC-BG] Échec de l\'upload du PDF :', err.message);
     notifyUI({ status: 'error', code: err.code || 'UNKNOWN', detail: getRichErrorDetail(err) });
+    // [ROB-M1] Purger le PDF base64 même en cas d'échec d'upload pour éviter la fuite mémoire
+    schedulePurge();
   }
 }
 
@@ -860,6 +884,8 @@ async function handleAttachmentCapture(message) {
 
 function handlePdfReady(message) {
   if (_pendingPdfResolve && _pendingPdfResolve.captureId === message.captureId) {
+    clearTimeout(_pdfTimeoutId); // [ROB-B1] Annuler le timer fantôme
+    _pdfTimeoutId = null;
     _lastCapturePdfB64 = message.pdfBase64;
     _pendingPdfResolve.resolve({ pdfBase64: message.pdfBase64, title: message.title });
     _pendingPdfResolve = null;
@@ -871,6 +897,8 @@ function handlePdfReady(message) {
 
 function handleCaptureError(message) {
   if (_pendingPdfReject && _pendingPdfReject.captureId === message.captureId) {
+    clearTimeout(_pdfTimeoutId); // [ROB-B1] Annuler le timer fantôme
+    _pdfTimeoutId = null;
     const err = NtcUtils.ntcError(message.code || 'UNKNOWN', message.detail || browser.i18n.getMessage('errorCaptureFailed') || 'Capture failed');
     _pendingPdfReject.reject(err);
     _pendingPdfResolve = null;
@@ -958,7 +986,11 @@ function cancelPurge() {
 // ROUTEUR PRINCIPAL
 // ─────────────────────────────────────────────
 
-browser.runtime.onMessage.addListener((message, _sender) => {
+browser.runtime.onMessage.addListener((message, sender) => {
+  // [SEC-M1] Rejeter les messages provenant d'origines externes (pages WebContent malveillantes)
+  // Les MessageDisplayScripts et la popup partagent le même runtime.id
+  if (sender.id && sender.id !== browser.runtime.id) return false;
+
   // Les messages PDF_READY et CAPTURE_ERROR viennent du MessageDisplayScript
   if (message.action === 'PDF_READY') { handlePdfReady(message); return; }
   if (message.action === 'CAPTURE_ERROR') { handleCaptureError(message); return; }

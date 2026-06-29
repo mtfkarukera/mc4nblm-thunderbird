@@ -97,6 +97,12 @@ function showState(name) {
       activeEl.focus();
     }
   }
+
+  // [A11Y-M1] Gestion de aria-busy : true pendant l'état capturing, false sinon
+  const capturingEl = document.getElementById('state-capturing');
+  if (capturingEl) {
+    capturingEl.setAttribute('aria-busy', name === 'capturing' ? 'true' : 'false');
+  }
 }
 
 /**
@@ -131,6 +137,10 @@ function applyI18n() {
   // Attribut title
   document.querySelectorAll('[data-i18n-title]').forEach(el => {
     el.title = t(el.getAttribute('data-i18n-title'));
+  });
+  // [A11Y-M3] Attribut aria-label (boutons icônes +, ✓, ✕)
+  document.querySelectorAll('[data-i18n-aria-label]').forEach(el => {
+    el.setAttribute('aria-label', t(el.getAttribute('data-i18n-aria-label')));
   });
 }
 
@@ -428,6 +438,11 @@ function handleNotebookListKeyDown(e) {
     e.preventDefault();
     const btnPdf = document.getElementById('btn-pdf');
     if (btnPdf) btnPdf.focus();
+  } else if (e.key === 'Escape') {
+    // [A11Y-B4] Pattern ARIA listbox : Escape renvoie le focus à la recherche
+    e.preventDefault();
+    const searchEl = document.getElementById('notebook-search');
+    if (searchEl) searchEl.focus();
   }
 }
 
@@ -507,11 +522,12 @@ function showSuccess(payload) {
   const btnOpen = document.getElementById('btn-open-notebook');
   if (btnOpen) {
     if (payload.notebookId) {
+      // [A11Y-B5] btn-open-notebook est désormais un <button> — l'URL est stockée dans dataset
       browser.storage.local.get(STORAGE_KEYS.ACTIVE_AUTHUSER).then(stored => {
         const index = stored[STORAGE_KEYS.ACTIVE_AUTHUSER] !== undefined ? stored[STORAGE_KEYS.ACTIVE_AUTHUSER] : 0;
-        btnOpen.href = NtcUtils.buildNotebookUrl(payload.notebookId, index);
+        btnOpen.dataset.notebookUrl = NtcUtils.buildNotebookUrl(payload.notebookId, index);
       }).catch(() => {
-        btnOpen.href = NtcUtils.buildNotebookUrl(payload.notebookId);
+        btnOpen.dataset.notebookUrl = NtcUtils.buildNotebookUrl(payload.notebookId);
       });
       btnOpen.classList.remove('hidden');
     } else {
@@ -886,20 +902,19 @@ function bindButtons() {
     }
   });
 
-  // Ouvrir dans NotebookLM
-  safeBindClick('btn-open-notebook', (e) => {
-    e.preventDefault();
+  // [A11Y-B5] Ouvrir dans NotebookLM — <button> avec URL en dataset (pas de href)
+  safeBindClick('btn-open-notebook', () => {
     const btn = document.getElementById('btn-open-notebook');
-    if (btn && btn.href) {
-      browser.tabs.create({ url: btn.href });
+    if (btn && btn.dataset.notebookUrl) {
+      browser.tabs.create({ url: btn.dataset.notebookUrl });
     }
   });
 
-  // Nouvel import
-  safeBindClick('btn-new-import', loadEmailMeta);
+  // [ROB-m2] Remettre le verrou à false pour éviter un blocage de l'UI après navigation pendant capture
+  safeBindClick('btn-new-import', () => { _isCapturing = false; loadEmailMeta(); });
 
-  // Retour depuis erreur
-  safeBindClick('btn-back', loadEmailMeta);
+  // [ROB-m2] Retour depuis erreur — réinitialiser le verrou
+  safeBindClick('btn-back', () => { _isCapturing = false; loadEmailMeta(); });
 
   // Reconnexion après session expirée
   safeBindClick('btn-reconnect', () => {

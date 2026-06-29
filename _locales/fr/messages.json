@@ -4,7 +4,7 @@
     "description": "Nom de l'extension affiché dans le gestionnaire de modules complémentaires"
   },
   "extensionDescription": {
-    "message": "Importez vos emails, pièces jointes et liens directement dans Google NotebookLM en un clic.",
+    "message": "Importez vos e-mails et pièces jointes directement dans Google NotebookLM en un clic.",
     "description": "Description de l'extension affichée dans le gestionnaire de modules complémentaires"
   },
   "actionTitle": {
@@ -322,5 +322,9 @@
   "createNotebookLabel": {
     "message": "Nom du nouveau carnet",
     "description": "Accessible label for create notebook input"
+  },
+  "labelProgressbar": {
+    "message": "Progression de l'import des pièces jointes",
+    "description": "Accessible label for the batch progress bar (role=progressbar)"
   }
 }

@@ -4,7 +4,7 @@
     "description": "Extension name displayed in Thunderbird Add-on Manager"
   },
   "extensionDescription": {
-    "message": "ワンクリックでメール、添付ファイル、リンクをGoogle NotebookLMに直接インポートします。",
+    "message": "ワンクリックでメールや添付ファイルをGoogle NotebookLMに直接インポートします。",
     "description": "Extension description displayed in Thunderbird Add-on Manager"
   },
   "actionTitle": {
@@ -322,5 +322,9 @@
   "createNotebookLabel": {
     "message": "新しいノートブックの名前",
     "description": "Accessible label for create notebook input"
+  },
+  "labelProgressbar": {
+    "message": "添付ファイルのインポートの進行状況",
+    "description": "Accessible label for the batch progress bar (role=progressbar)"
   }
 }

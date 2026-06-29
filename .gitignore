@@ -15,9 +15,7 @@ dist/
 # Agents & directives
 .agents/
 AGENTS.md
-ARCHITECTURE.md
 API-REFERENCE.md
-CHANGELOG.md
 
 # Dev docs (internes — archivés dans docs/archive/)
 docs/
