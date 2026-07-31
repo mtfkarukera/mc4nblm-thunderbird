@@ -5,6 +5,14 @@ Toutes les modifications notables de ce projet sont documentées dans ce fichier
 Le format est basé sur [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/),
 et ce projet adhère au [Versionnage Sémantique](https://semver.org/lang/fr/).
 
+## [1.5.1] — 2026-07-31
+
+### 🔴 Correctif Critique — Migration vers notebook.google.com
+- **Migration Domaine Google** : Alignement du Web Clipper Thunderbird MailExtension sur le nouveau domaine officiel `notebook.google.com`.
+- **Authentification & RPC** : Mise à jour de `NBLM_URL`, `GOOGLE_DOMAINS`, `RotateCookies`, des endpoints RPC `batchexecute`, de l'upload resumable et des en-têtes `Origin`/`Referer`.
+
+---
+
 ## [1.5.0] — 2026-06-29
 
 ### Ajouté

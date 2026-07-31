@@ -382,7 +382,7 @@ var NtcUtils = (function () {
    * @returns {string} - URL complète vers le carnet.
    */
   function buildNotebookUrl(notebookId, authuserIndex) {
-    const url = `https://notebooklm.google.com/notebook/${notebookId}`;
+    const url = `https://notebook.google.com/notebook/${notebookId}`;
     if (authuserIndex !== undefined && authuserIndex !== null) {
       return `${url}?authuser=${authuserIndex}`;
     }

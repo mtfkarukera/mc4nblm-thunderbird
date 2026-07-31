@@ -9,7 +9,7 @@
 (function() {
   'use strict';
 
-const NBLM_BATCH_URL = 'https://notebooklm.google.com/_/LabsTailwindUi/data/batchexecute';
+const NBLM_BATCH_URL = 'https://notebook.google.com/_/LabsTailwindUi/data/batchexecute';
 
 // Stockage du dernier texte HTTP brut (diagnostic)
 let _lastRawText = '(non récupéré)';
@@ -437,8 +437,8 @@ async function batchExecute(rpcId, params, csrfToken, authuserIndex) {
       headers: {
         'Accept': '*/*',
         'Content-Type': 'application/x-www-form-urlencoded;charset=utf-8',
-        'Origin': 'https://notebooklm.google.com',
-        'Referer': 'https://notebooklm.google.com/',
+        'Origin': 'https://notebook.google.com',
+        'Referer': 'https://notebook.google.com/',
       },
       body,
       signal: controller.signal,
@@ -691,15 +691,15 @@ async function uploadFileSource(csrfToken, fileBlob, filename, notebookId, authu
   let startResp;
   try {
     startResp = await fetchWithRetry(
-      `https://notebooklm.google.com/upload/_/?authuser=${authuserIndex}`,
+      `https://notebook.google.com/upload/_/?authuser=${authuserIndex}`,
       {
         method: 'POST',
         credentials: 'include',
         headers: {
           'Accept': '*/*',
           'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8',
-          'Origin': 'https://notebooklm.google.com',
-          'Referer': 'https://notebooklm.google.com/',
+          'Origin': 'https://notebook.google.com',
+          'Referer': 'https://notebook.google.com/',
           'x-goog-upload-command': 'start',
           'x-goog-upload-protocol': 'resumable',
           'x-goog-upload-header-content-length': String(fileBlob.size),
@@ -756,8 +756,8 @@ async function uploadFileSource(csrfToken, fileBlob, filename, notebookId, authu
       headers: {
         'Accept': '*/*',
         'Content-Type': 'application/x-www-form-urlencoded;charset=utf-8',
-        'Origin': 'https://notebooklm.google.com',
-        'Referer': 'https://notebooklm.google.com/',
+        'Origin': 'https://notebook.google.com',
+        'Referer': 'https://notebook.google.com/',
         'x-goog-upload-command': 'upload, finalize',
         'x-goog-upload-offset': '0',
         'x-goog-authuser': String(authuserIndex),

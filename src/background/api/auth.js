@@ -8,9 +8,9 @@
 (function() {
   'use strict';
 
-const NBLM_URL       = 'https://notebooklm.google.com/';
+const NBLM_URL       = 'https://notebook.google.com/';
 const ROTATE_URL     = 'https://accounts.google.com/RotateCookies';
-const GOOGLE_DOMAINS = ['google.com', 'notebooklm.google.com', 'accounts.google.com'];
+const GOOGLE_DOMAINS = ['google.com', 'notebook.google.com', 'notebooklm.google.com', 'accounts.google.com'];
 
 // Tier 1 : obligatoires — bloquants si absents
 const TIER1_COOKIES  = ['SID', '__Secure-1PSIDTS'];
@@ -160,7 +160,7 @@ async function rotateCookiesIfNeeded() {
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded'
       },
-      body: 'continue=https://notebooklm.google.com/',
+      body: 'continue=https://notebook.google.com/',
       signal: controller.signal,
     });
     clearTimeout(timeoutId);
