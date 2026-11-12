@@ -1,11 +1,10 @@
-# 📎 Magic Clipper for NotebookLM
+# 📎 Magic Clipper for Gemini Notebook (Thunderbird)
 
-![version](https://img.shields.io/badge/version-1.5.1-blue) ![platform](https://img.shields.io/badge/Thunderbird-115%2B-0a84ff)
+![version](https://img.shields.io/badge/version-1.6.0-blue) ![platform](https://img.shields.io/badge/Thunderbird-128%2B%20ESR-0a84ff) ![manifest](https://img.shields.io/badge/Manifest-V3-2ea44f)
 
+**Magic Clipper for Gemini Notebook** est une MailExtension Thunderbird (**Manifest V3**, compatible **Thunderbird 128.0+ ESR**) permettant d'importer le contenu d'un courriel (corps et pièces jointes) directement dans un carnet **Google Gemini Notebook** (anciennement NotebookLM, `notebook.google.com`) en un clic depuis le panneau de lecture.
 
-**Magic Clipper for NotebookLM** est une MailExtension Thunderbird (Manifest V2) qui permet d'importer le contenu d'un email (corps, pièces jointes) directement dans un carnet **Google NotebookLM** en un seul clic depuis le panneau de lecture.
-
-Optimisé pour l'analyse par Gemini, il intègre un grounding IA complet et prend en compte les contextes de sécurité spécifiques au panneau de lecture de Thunderbird.
+Optimisée pour l'analyse par Gemini, l'extension injecte automatiquement le contexte complet du courriel (*grounding IA* : objet, expéditeur, destinataires, date et note d'intention optionnelle) tout en respectant l'isolation stricte des courriels dans Thunderbird.
 
 ---
 
@@ -13,119 +12,65 @@ Optimisé pour l'analyse par Gemini, il intègre un grounding IA complet et pren
 
 | Fonctionnalité | Description |
 | --- | --- |
-| **3 modes d'import** | 📄 PDF, 📝 Markdown, ⚡ Import Direct de pièces jointes |
-| **📄 Email → PDF** | Rendu PDF haute fidélité du DOM de l'email via jsPDF avec grounding IA complet en en-tête. |
-| **📝 Email → Markdown** | Extraction et conversion propre du HTML en Markdown structuré (support complet des listes imbriquées, blockquotes, code blocks, et tableaux). |
-| **⚡ Import Direct (PJ)** | Détecte et importe individuellement ou par lot les pièces jointes (PDF, images, audio, vidéo, documents) via le protocole Google Scotty. |
-| **Filtrage des médias** | Les images base64 ou volumineuses en pièces jointes sont gérées de façon à éviter tout blocage de quota de l'API. |
-| **Fast Research** | Filtrage dynamique en temps réel avec debounce (300ms) pour trouver instantanément votre carnet cible. |
-| **Multi-comptes** | Menu déroulant intégré pour basculer facilement entre vos différents profils et comptes Google. |
-| **Internationalisation** | Support complet en 7 langues (EN, FR, DE, ES, VI, JA, PT) avec basculement automatique selon la locale de Thunderbird. |
+| **3 pipelines d'import** | 📄 Courriel → PDF, 📝 Courriel → Markdown, ⚡ Pièces jointes → Import Direct |
+| **📄 Courriel → PDF** | Rendu PDF paginé du courriel affiché via `jsPDF`, avec en-tête de contexte IA, tableaux et images intégrées. |
+| **📝 Courriel → Markdown** | Extraction MIME récursive et conversion HTML → Markdown fidèle (titres, listes imbriquées, citations, blocs de code, tableaux), idéale pour toutes les écritures UTF-8 / CJK. |
+| **⚡ Import Direct (PJ)** | Détection et import séquentiel de vos pièces jointes (PDF, documents Office, images, audio, vidéo, texte/CSV jusqu'à 200 Mo) via le protocole Google Scotty, y compris sur les courriels sans texte d'accompagnement. |
+| **Note d'intention IA** | Champ optionnel injecté en tête du PDF ou du Markdown pour guider l'analyse de Gemini Notebook. |
+| **Fast Research & Création** | Recherche instantanée de carnets (debounce 300 ms) et création de nouveau carnet directement depuis la popup. |
+| **Multi-comptes Google** | Bascule fluide entre vos différents comptes Google connectés (`authuser` 0 à 4). |
+| **Respect de la vie privée** | Opt-in explicite au premier lancement, transfert HTTPS direct vers Google (zéro serveur tiers, zéro télémétrie) et bouton de déconnexion en un clic. |
+| **Accessibilité & 7 langues** | Interface Glassmorphism sombre/clair conforme WCAG 2.1 AA, traduite en 7 langues (`EN`, `FR`, `DE`, `ES`, `VI`, `JA`, `PT`). |
 
 ---
 
-## 🏗️ Architecture et Flux de Données
+## 🏗️ Architecture et Sécurité
 
-```text
-┌───────────────────────────┐      ┌─────────────────────────────┐      ┌─────────────────────────────┐
-│        Popup (UI)         │─────▶│       Background.js         │─────▶│      NotebookLM API         │
-│  Logique états et boutons │      │       (Persistent MV2)      │      │      /batchexecute          │
-│  Fast Research            │◀─────│       Auth Gecko & CSRF     │◀─────│      /upload/_/ (Scotty)    │
-└───────────────────────────┘      └──────────────┬──────────────┘      └─────────────────────────────┘
-                                                  │
-                                                  │ (messageDisplayScripts)  
-                                           ┌──────▼──────────────────────┐
-                                           │    Content Bridge Script    │
-                                           │    email_bridge.js          │
-                                           │    email_pdf_generator.js   │
-                                           └─────────────────────────────┘
-```
+* **Event Page Manifest V3** : aucune exécution permanente inutile en arrière-plan ; réveil à la demande lors de l'ouverture de la popup ou des alarmes système (`browser.alarms`).
+* **Réseau 100 % HTTPS isolé** : toutes les requêtes vers `https://notebook.google.com` et `https://upload.googleapis.com` transitent par l'Event Page d'arrière-plan avec vérification stricte des domaines d'upload.
+* **Sécurité DOM stricte** : zéro `innerHTML`, zéro `eval()`, code source lisible non minifié et bibliothèque `jsPDF 4.2.1` officielle intacte ([VENDOR.md](VENDOR.md)).
 
-* **CORS et Réseau** : Toutes les requêtes réseau vers Google passent par le script d'arrière-plan (`background.js`), exempté des règles de CORS appliquées à l'affichage des emails.
-* **Extraction MIME récursive** : L'extension parcourt récursivement l'arbre MIME des emails pour restituer le contenu sous son meilleur format structurel (HTML ou texte brut).
-* **Scripts PDF pré-enregistrés** : La bibliothèque `jspdf.umd.min.js` et le script de génération `email_pdf_generator.js` sont enregistrés comme messageDisplayScripts au démarrage du background — la capture PDF est ainsi disponible immédiatement, sans injection à la volée.
-
-Pour une description détaillée des flux de données, de la gestion de l'authentification et du protocole d'upload, consulte le document d'[Architecture Technique (ARCHITECTURE.md)](ARCHITECTURE.md).
+Consultez [ARCHITECTURE.md](ARCHITECTURE.md) pour le détail technique complet, [PRIVACY-POLICY.md](PRIVACY-POLICY.md) pour la charte de confidentialité et [CONTRIBUTING.md](CONTRIBUTING.md) pour les standards de développement.
 
 ---
 
 ## 🚀 Installation et Utilisation
 
-### ⚠️ Prérequis de connexion Google
+### 1. Configuration initiale (première utilisation)
 
-Avant d'utiliser l'extension pour la première fois, **votre compte Google** doit s'être connecté à NotebookLM au moins une fois dans Thunderbird :
+1. Ouvrez un courriel dans Thunderbird et cliquez sur le bouton **Notebook** (*Clipper vers Gemini Notebook*) dans l'en-tête du message.
+2. Cochez la case autorisant l'envoi des courriels que vous sélectionnez vers votre compte Google Gemini Notebook, puis cliquez sur **Se connecter à Gemini Notebook**.
+3. Un onglet WebContent interne s'ouvre sur `https://notebook.google.com/`. Connectez-vous à votre compte Google.
+4. Dès la session validée, l'onglet se referme automatiquement et la liste de vos carnets s'affiche.
 
-1. Cliquez sur le bouton de l'extension. Si vous n'êtes pas connecté, l'état **Connexion requise** s'affiche.
-2. Cliquez sur le bouton **Se connecter à NotebookLM**.
-3. Un onglet WebContent interne s'ouvre dans Thunderbird sur [notebooklm.google.com](https://notebooklm.google.com/).
-4. Connectez-vous avec votre compte Google.
-5. Une fois connecté, l'onglet se ferme automatiquement. L'extension détecte vos cookies de session et affiche vos carnets.
+### 2. Chargement temporaire (Développement)
 
----
+1. Ouvrez Thunderbird (**128.0 ESR** ou plus récent).
+2. Ouvrez le menu **Outils** → **Boîte à outils de développement** → **Débogage des modules**.
+3. Cliquez sur **Charger un module temporaire…** et sélectionnez le fichier `manifest.json` à la racine du dépôt.
 
-### Méthode 1 : Chargement temporaire (Développement)
+### 3. Compilation et installation d'une archive `.xpi`
 
-1. Ouvrez Thunderbird.
-2. Allez dans le menu ☰ ➡️ **Outils** ➡️ **Boîte à outils de développement** ➡️ **Déboguage des modules**.
-3. Cliquez sur **Ce Thunderbird** (ou bouton équivalent).
-4. Cliquez sur **Charger un module temporaire...** et sélectionnez le fichier `manifest.json` à la racine du projet.
-
----
-
-### Méthode 2 : Packaging et Installation permanente
-
-1. Packagez le projet en archive ZIP/XPI depuis la racine :
+1. Installez les outils de développement et construisez le paquet depuis la racine du projet :
    ```bash
-   npx web-ext build --source-dir .
+   npm install
+   bash build.sh
    ```
-2. Renommez l'archive produite en `.xpi` (ex: `notebooklm-clipper-tb-1.4.0.xpi`).
-3. Dans Thunderbird ➡️ **Gestionnaire de modules complémentaires** ➡️ cliquez sur l'icône engrenage ⚙️ ➡️ **Installer un module depuis un fichier...** ➡️ Sélectionnez votre fichier `.xpi`.
+2. L'archive prête à l'emploi est générée dans `dist/notebooklm-clipper-tb-1.6.0.xpi`.
+3. Dans Thunderbird → **Gestionnaire de modules complémentaires** → icône engrenage ⚙️ → **Installer un module depuis un fichier…**, sélectionnez le fichier `.xpi`.
 
 ---
 
-## 📁 Structure du Projet
+## 📋 Historique des versions
 
-```text
-notebooklm-clipper-thunderbird/
-├── manifest.json                    # Manifest V2 MailExtension
-├── _locales/                        # Fichiers de traduction native (EN, FR, DE, ES, VI, JA, PT)
-├── lib/
-│   └── jspdf.umd.min.js            # jsPDF 2.5.2 standalone (pré-enregistré)
-├── src/
-│   ├── background/
-│   │   ├── background.js           # Routeur principal & pipelines d'import
-│   │   └── api/
-│   │       ├── auth.js             # Gestion auth Gecko, cookies et rotation CSRF
-│   │       └── rpc_client.js       # Clients RPC Google batchexecute et Scotty Upload
-│   ├── content/
-│   │   ├── email_bridge.js         # Point d'entrée injecté dans l'affichage email
-│   │   └── email_pdf_generator.js  # Générateur PDF (jsPDF DOM Walker)
-│   ├── popup/
-│   │   ├── popup.html              # Vue UI Glassmorphism de la popup
-│   │   ├── popup.css               # Styles et thèmes (Sombre / Clair)
-│   │   └── popup.js                # Contrôleur UI, Fast Research et boutons
-│   └── shared/
-│       └── utils.js                # Fonctions utilitaires, i18n et htmlToMarkdown
-└── icons/
-    └── icon.svg                    # Icône officielle de l'extension
-```
+L'historique exhaustif est maintenu dans [CHANGELOG.md](CHANGELOG.md).
+
+- **v1.6.0** (2026-11-12) : Migration complète vers **Manifest V3 (Thunderbird 128+ ESR)**, conformité officielle ATN (jsPDF intact + `VENDOR.md`, consentement opt-in explicite, HTTPS strict), refonte de la pagination PDF, support des courriels PJ-seules, mise en conformité accessibilité WCAG 2.1 AA, rebranding complet **Magic Clipper for Gemini Notebook**, bouton court **Notebook** et barre de session supérieure.
+- **v1.5.1** (2026-07-31) : Migration vers le domaine officiel `notebook.google.com`.
+- **v1.5.0** (2026-06-29) : Renforcements d'accessibilité clavier, sécurité des messages IPC et design Glassmorphism.
+- **v1.4.1** (2026-06-29) : Amélioration des contrastes en modes sombre et clair et navigation clavier de la liste des carnets.
+- **v1.4.0** (2026-06-14) : Gestion du rate-limiting HTTP 429, identifiant de corrélation PDF et charte de confidentialité.
+- **v1.0.0** (2026-06-09) : Première version officielle MailExtension pour Thunderbird.
 
 ---
-
-## 📋 Changelog
-
-L'historique complet et détaillé des modifications de chaque version est disponible dans le fichier [CHANGELOG.md](CHANGELOG.md).
-
-- **v1.5.0** (2026-06-29) : Corrections d'audit (robustesse, accessibilité WCAG AA, sécurité et design).
-- **v1.4.1** (2026-06-29) : Amélioration des thèmes de couleurs et contrastes au survol pour conformité WCAG.
-- **v1.0.6** (2026-06-26) : Détection de l'email actif unifiée sur les onglets et fenêtres autonomes Thunderbird.
-- **v1.0.5** (2026-06-25) : Saisie inline pour la création de carnets et fiabilisation de l'authentification.
-- **v1.0.4** (2026-06-24) : Traduction des codes d'erreurs Gecko et gestion des grosses pièces jointes.
-- **v1.0.3** (2026-06-23) : Remplacement et vectorisation haute définition des icônes d'extension.
-- **v1.0.2** (2026-06-18) : Localisation en 7 langues et protection stricte contre l'utilisation d'innerHTML.
-- **v1.0.1** (2026-06-12) : Remplacement de l'upload Scotty et prévention des imports PDF concurrents.
-- **v1.0.0** (2026-06-10) : Version initiale officielle MailExtension Manifest V2 pour Thunderbird.
-
----
-*Développé par **MTF Karukera**. Découvre toutes les solutions logicielles et outils de productivité de la suite **magic-softs** sur [magic-clipper.mtfk.fr](https://magic-clipper.mtfk.fr/).*
-
+*Développé par **MTF Karukera**. Découvre toutes les solutions logicielles et outils de productivité de la suite **magic-softs** sur [mtfk.fr](https://mtfk.fr/).*

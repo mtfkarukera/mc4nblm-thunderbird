@@ -2,9 +2,11 @@
 .DS_Store
 Thumbs.db
 
-# Build
+# Build & Store Artifacts
 dist/
 *.xpi
+web-ext-artifacts/
+WEBEXT-LINTER-CACHE/
 .amo-upload-uuid
 
 # IDE
@@ -12,33 +14,29 @@ dist/
 .vscode/
 .idea/
 
-# Agents & directives
+# Directives IA & Suivi privé (strictement privés — Règle globale §6)
 .agents/
 AGENTS.md
 API-REFERENCE.md
-
-# Dev docs (internes — archivés dans docs/archive/)
+submission_kit.md
+task.md
+tasks.md
 docs/
+publication/
 
 # Libs obsolètes
 lib/html2pdf.bundle.min.js
 
-# Dev / signing scripts
+# Scripts & Outillage dev local
 sign.sh
 build.sh
 web-ext-config.cjs
-web-ext-artifacts/
+web-ext-config.mjs
+.web-ext-ignore
 tools/
-
-# Temporary SQLite and Node files
+scratch/
 cookies_copy.sqlite*
 node_modules/
-scratch/
-
-docs/
-
-# Outillage dev local (non publié — audit release 2026-06-10)
 package.json
 package-lock.json
 eslint.config.js
-.web-ext-ignore

@@ -1,27 +1,31 @@
 {
   "extensionName": {
-    "message": "Magic Clipper for NotebookLM",
+    "message": "Magic Clipper for Gemini Notebook",
     "description": "Extension name displayed in Thunderbird Add-on Manager"
   },
   "extensionDescription": {
-    "message": "Importieren Sie E-Mails und Anhänge direkt in Google NotebookLM mit einem Klick.",
+    "message": "Importieren Sie E-Mails und Anhänge direkt in Google Gemini Notebook mit einem Klick.",
     "description": "Extension description displayed in Thunderbird Add-on Manager"
   },
+  "actionLabel": {
+    "message": "Notebook",
+    "description": "Short toolbar button label in message header"
+  },
   "actionTitle": {
-    "message": "In NotebookLM importieren",
+    "message": "In Gemini Notebook importieren",
     "description": "Tooltip on the message_display_action button"
   },
   "stateAuthRequired": {
-    "message": "Bei NotebookLM anmelden",
+    "message": "Bei Gemini Notebook anmelden",
     "description": "Heading shown when authentication is needed"
   },
   "stateAuthRequiredBody": {
-    "message": "Verbinden Sie Ihr Google-Konto, um E-Mails in NotebookLM zu importieren.",
+    "message": "Verbinden Sie Ihr Google-Konto, um E-Mails in Gemini Notebook zu importieren.",
     "description": "Explanation text in the auth-required state"
   },
   "btnConnect": {
-    "message": "Mit NotebookLM verbinden",
-    "description": "Button to open the NotebookLM auth tab"
+    "message": "Mit Gemini Notebook verbinden",
+    "description": "Button to open the Gemini Notebook auth tab"
   },
   "stateLoading": {
     "message": "Wird geladen…",
@@ -103,7 +107,7 @@
   },
   "statusUploading": {
     "message": "Wird hochgeladen…",
-    "description": "Shown while the file is being uploaded to NotebookLM"
+    "description": "Shown while the file is being uploaded to Gemini Notebook"
   },
   "statusBatchProgress": {
     "message": "Anhang $CURRENT$ von $TOTAL$ wird importiert…",
@@ -140,11 +144,11 @@
     "description": "Button to start a new import after success"
   },
   "errorApiChanged": {
-    "message": "Die NotebookLM-API wurde geändert. Ein Update ist erforderlich.",
+    "message": "Die Gemini Notebook-API wurde geändert. Ein Update ist erforderlich.",
     "description": "Error code API_CHANGED"
   },
   "errorAuthExpired": {
-    "message": "Sitzung abgelaufen. Bitte melden Sie sich erneut bei NotebookLM an.",
+    "message": "Sitzung abgelaufen. Bitte melden Sie sich erneut bei Gemini Notebook an.",
     "description": "Error code AUTH_EXPIRED"
   },
   "errorUploadSessionMissing": {
@@ -326,5 +330,29 @@
   "labelProgressbar": {
     "message": "Fortschritt des Anhang-Imports",
     "description": "Accessible label for the batch progress bar (role=progressbar)"
+  },
+  "consentCheckboxLabel": {
+    "message": "Ich erlaube das Senden ausgewählter E-Mail-Inhalte und Anhänge an mein Google Gemini Notebook-Konto (notebook.google.com).",
+    "description": "Explicit opt-in consent checkbox required by Thunderbird ATN data-exfiltration policy"
+  },
+  "consentPrivacyHint": {
+    "message": "Direkte HTTPS-Übertragung von Thunderbird zu Google — kein Drittanbieter-Server und keine Telemetrie.",
+    "description": "Privacy reassurance hint under the explicit consent checkbox"
+  },
+  "btnDisconnect": {
+    "message": "Trennen",
+    "description": "Button to revoke local session and explicit data-transmission consent"
+  },
+  "errorEmptyAttachment": {
+    "message": "Leere Datei (0 Byte)",
+    "description": "Error shown when an attachment has 0 bytes"
+  },
+  "errorWordLimitExceeded": {
+    "message": "Diese E-Mail überschreitet das Limit von 500.000 Wörtern in Gemini Notebook.",
+    "description": "Error code WORD_LIMIT_EXCEEDED"
+  },
+  "warningPdfNonLatin": {
+    "message": "Nicht-lateinische Zeichen wurden im PDF ersetzt. Nutzen Sie den Markdown-Export für vollständige Zeichentreue.",
+    "description": "Non-blocking warning shown when jsPDF Helvetica replaces CJK/non-Latin glyphs"
   }
 }

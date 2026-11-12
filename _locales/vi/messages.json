@@ -1,27 +1,31 @@
 {
   "extensionName": {
-    "message": "Magic Clipper for NotebookLM",
+    "message": "Magic Clipper for Gemini Notebook",
     "description": "Extension name displayed in Thunderbird Add-on Manager"
   },
   "extensionDescription": {
-    "message": "Nhập email và tệp đính kèm trực tiếp vào Google NotebookLM chỉ với một cú nhấp chuột.",
+    "message": "Nhập email và tệp đính kèm trực tiếp vào Google Gemini Notebook chỉ với một cú nhấp chuột.",
     "description": "Extension description displayed in Thunderbird Add-on Manager"
   },
+  "actionLabel": {
+    "message": "Notebook",
+    "description": "Short toolbar button label in message header"
+  },
   "actionTitle": {
-    "message": "Lưu vào NotebookLM",
+    "message": "Lưu vào Gemini Notebook",
     "description": "Tooltip on the message_display_action button"
   },
   "stateAuthRequired": {
-    "message": "Đăng nhập vào NotebookLM",
+    "message": "Đăng nhập vào Gemini Notebook",
     "description": "Heading shown when authentication is needed"
   },
   "stateAuthRequiredBody": {
-    "message": "Kết nối tài khoản Google của bạn để bắt đầu nhập email vào NotebookLM.",
+    "message": "Kết nối tài khoản Google của bạn để bắt đầu nhập email vào Gemini Notebook.",
     "description": "Explanation text in the auth-required state"
   },
   "btnConnect": {
-    "message": "Kết nối với NotebookLM",
-    "description": "Button to open the NotebookLM auth tab"
+    "message": "Kết nối với Gemini Notebook",
+    "description": "Button to open the Gemini Notebook auth tab"
   },
   "stateLoading": {
     "message": "Đang tải…",
@@ -103,7 +107,7 @@
   },
   "statusUploading": {
     "message": "Đang tải lên…",
-    "description": "Shown while the file is being uploaded to NotebookLM"
+    "description": "Shown while the file is being uploaded to Gemini Notebook"
   },
   "statusBatchProgress": {
     "message": "Đang nhập tệp đính kèm $CURRENT$ trên $TOTAL$…",
@@ -140,11 +144,11 @@
     "description": "Button to start a new import after success"
   },
   "errorApiChanged": {
-    "message": "API NotebookLM đã thay đổi. Yêu cầu cập nhật phiên bản mới.",
+    "message": "API Gemini Notebook đã thay đổi. Yêu cầu cập nhật phiên bản mới.",
     "description": "Error code API_CHANGED"
   },
   "errorAuthExpired": {
-    "message": "Phiên làm việc hết hạn. Vui lòng đăng nhập lại vào NotebookLM.",
+    "message": "Phiên làm việc hết hạn. Vui lòng đăng nhập lại vào Gemini Notebook.",
     "description": "Error code AUTH_EXPIRED"
   },
   "errorUploadSessionMissing": {
@@ -326,5 +330,29 @@
   "labelProgressbar": {
     "message": "Tiến trình nhập tệp đính kèm",
     "description": "Accessible label for the batch progress bar (role=progressbar)"
+  },
+  "consentCheckboxLabel": {
+    "message": "Tôi cho phép gửi nội dung và tệp đính kèm của email đã chọn tới tài khoản Google Gemini Notebook của tôi (notebook.google.com).",
+    "description": "Explicit opt-in consent checkbox required by Thunderbird ATN data-exfiltration policy"
+  },
+  "consentPrivacyHint": {
+    "message": "Truyền trực tiếp qua HTTPS từ Thunderbird đến Google — không qua máy chủ bên thứ ba hay thu thập dữ liệu.",
+    "description": "Privacy reassurance hint under the explicit consent checkbox"
+  },
+  "btnDisconnect": {
+    "message": "Ngắt kết nối",
+    "description": "Button to revoke local session and explicit data-transmission consent"
+  },
+  "errorEmptyAttachment": {
+    "message": "Tệp trống (0 byte)",
+    "description": "Error shown when an attachment has 0 bytes"
+  },
+  "errorWordLimitExceeded": {
+    "message": "Email này vượt quá giới hạn 500.000 từ của Gemini Notebook.",
+    "description": "Error code WORD_LIMIT_EXCEEDED"
+  },
+  "warningPdfNonLatin": {
+    "message": "Một số ký tự không thuộc hệ Latinh đã được thay thế trong tệp PDF. Hãy dùng xuất Markdown để giữ nguyên toàn bộ ký tự.",
+    "description": "Non-blocking warning shown when jsPDF Helvetica replaces CJK/non-Latin glyphs"
   }
 }

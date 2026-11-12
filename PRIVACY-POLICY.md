@@ -1,44 +1,49 @@
-# Charte de Confidentialité — NotebookLM Clipper for Thunderbird
+# Charte de Confidentialité — Magic Clipper for Gemini Notebook (Thunderbird)
 
-Dernière mise à jour : 14 juin 2026
+Dernière mise à jour : 12 novembre 2026
 
-Cette charte de confidentialité décrit comment l'extension **NotebookLM Clipper for Thunderbird** (la "MailExtension") collecte, utilise et protège vos données personnelles lorsque vous utilisez l'application.
-
----
-
-## 1. Données collectées et Permission `sensitiveDataUpload`
-
-Pour assurer son fonctionnement, l'extension nécessite et utilise la permission **`sensitiveDataUpload`** (transmission de données sensibles). 
-
-### Quelles données sont lues ?
-Lorsque vous demandez explicitement l'importation d'un e-mail ou d'une pièce jointe, l'extension accède localement dans votre client de messagerie Thunderbird aux données suivantes :
-- **Métadonnées de l'e-mail** : Sujet, expéditeur, destinataire(s), date et heure.
-- **Contenu du message** : Le corps du courriel (texte brut ou code HTML rendu).
-- **Pièces jointes** : Les fichiers attachés au courriel que vous sélectionnez manuellement pour l'import.
-
-### Pourquoi ces données sont-elles lues ?
-La lecture de ces données a pour unique but de les formater (en PDF, Markdown, ou transmission de fichier binaire) afin de les téléverser dans votre espace personnel **Google NotebookLM** pour qu'elles y soient analysées par l'outil de recherche de Google.
+Cette charte de confidentialité décrit comment l'extension **Magic Clipper for Gemini Notebook** pour Thunderbird (la « MailExtension », développée par **MTF Karukera**) accède aux données de vos courriels, les traite localement et les transmet uniquement sur votre demande explicite.
 
 ---
 
-## 2. Utilisation, Transfert et Sécurisation des Données
+## 1. Données traitées et Consentement Explicite
 
-L'extension applique une politique stricte de **direct-to-destination** et de respect de votre vie privée :
-- **Pas de serveur tiers** : Vos e-mails et pièces jointes ne transitent par **aucun serveur tiers ou intermédiaire**. Les données sont envoyées directement depuis votre client de Thunderbird vers les serveurs officiels de Google via des requêtes HTTPS sécurisées (`https://notebooklm.google.com`).
-- **Aucun stockage persistant externe** : L'extension ne stocke aucun de vos e-mails ou fichiers. Une fois l'importation terminée (réussie ou échouée), les copies temporaires en mémoire (mémoire vive locale de Thunderbird) sont immédiatement purgées.
-- **Aucune revente ni partage** : Vos données ne sont ni partagées, ni vendues, ni utilisées à des fins publicitaires ou d'entraînement de modèles d'IA par les concepteurs de cette extension. Elles appartiennent exclusivement à votre compte Google NotebookLM.
+L'extension fonctionne selon un principe strict d'**opt-in explicite désactivé par défaut** : aucun appel réseau n'est émis tant que vous n'avez pas validé le consentement de transfert lors de la configuration initiale, puis cliqué manuellement sur un bouton d'importation.
+
+### Quelles données sont lues localement ?
+Lorsque vous ouvrez la popup de l'extension sur un courriel affiché dans Thunderbird et déclenchez une importation, l'extension accède localement aux éléments suivants :
+- **Métadonnées du courriel** : Objet, expéditeur, destinataire(s), date et heure.
+- **Contenu du message** : Corps du courriel (texte brut MIME pour le mode Markdown, ou rendu DOM local pour la génération PDF).
+- **Pièces jointes sélectionnées** : Uniquement les fichiers joints que vous cochez manuellement dans la liste avant de cliquer sur le bouton d'importation.
+- **Cookies de session Google** : Lecture locale dans le magasin de cookies de Thunderbird pour `https://notebook.google.com` (avec repli sur `https://notebooklm.google.com`) et `https://accounts.google.com` afin d'authentifier vos requêtes auprès de votre propre compte Google Gemini Notebook.
+
+### Justification des permissions déclarées (`manifest.json` MV3)
+- `messagesRead` : Lecture des métadonnées, du corps et des pièces jointes du seul courriel affiché lorsque vous ouvrez l'extension.
+- `scripting` : Injection locale du générateur PDF (`jsPDF`) dans le panneau d'affichage du courriel lors d'un export PDF.
+- `cookies` et `host_permissions` (`https://*.google.com/*`, `https://*.googleapis.com/*`) : Authentification et téléversement direct en HTTPS vers les serveurs officiels Google Gemini Notebook.
+- `storage` : Mémorisation locale dans Thunderbird de votre consentement, du dernier carnet sélectionné et de l'index de compte actif (`storage.local`), ainsi que des métadonnées techniques éphémères de session (`storage.session`). Aucun contenu d'e-mail, cookie ou jeton secret n'est jamais écrit sur disque.
+- `downloads` : Enregistrement sur votre poste local du fichier PDF ou Markdown généré lorsque vous cliquez sur « Télécharger ».
+- `alarms` : Planification périodique du maintien de session Google et purge automatique de la mémoire vive au bout de 5 minutes maximum après un import.
+- `sensitiveDataUpload` & `data_collection_permissions` (`personalCommunications`) : Déclaration officielle auprès de Thunderbird indiquant que l'extension permet à l'utilisateur d'envoyer le contenu de courriels choisis vers un service distant (Google Gemini Notebook).
 
 ---
 
-## 3. Contrôle de l'Utilisateur et Consentement
+## 2. Transfert Direct, Sécurité et Absence de Serveur Tiers
 
-Vous conservez le contrôle total sur vos données à tout moment :
-- **Déclenchement manuel** : L'extension n'effectue aucune capture ou transmission automatique en arrière-plan. Chaque transfert de données nécessite une action manuelle et explicite de votre part (clic sur le bouton "Importer" dans la popup de l'extension).
-- **Sélection des éléments** : Vous pouvez choisir d'importer uniquement le corps du courriel (en PDF ou Markdown) et de cocher/décocher individuellement les pièces jointes à joindre ou à ignorer.
-- **Déconnexion** : Vous pouvez vous déconnecter de NotebookLM à tout moment en fermant votre session dans l'onglet NotebookLM ou en purgeant les cookies de Thunderbird.
+- **Zéro serveur intermédiaire, zéro télémétrie** : Vos courriels, pièces jointes et identifiants ne transitent par **aucun serveur appartenant à MTF Karukera ou à un tiers**. Toutes les communications s'effectuent directement en HTTPS (`TLS`) depuis votre client Thunderbird vers les serveurs officiels de Google (`https://notebook.google.com`, `https://accounts.google.com` et `https://upload.googleapis.com`).
+- **Rétention mémoire éphémère (TTL 5 minutes)** : Afin de vous permettre de télécharger localement une copie du PDF ou du Markdown juste après un import réussi, le document généré est conservé uniquement dans la mémoire vive locale de Thunderbird tant que l'écran de succès est affiché, et est systématiquement purgé à la fermeture de la popup, au démarrage d'un nouvel import ou au plus tard après **5 minutes**.
+- **Aucune exploitation commerciale** : L'extension ne collecte aucune statistique d'usage, ne dépose aucun traceur publicitaire et ne partage aucune donnée. Une fois téléversées dans votre carnet Google Gemini Notebook, vos sources sont soumises aux conditions d'utilisation et aux règles de confidentialité de votre propre compte Google.
+
+---
+
+## 3. Contrôle de l'Utilisateur et Révocation
+
+Vous conservez un contrôle total à chaque instant :
+- **Action manuelle systématique** : Aucune capture automatique ni synchronisation en arrière-plan des courriels entrants ou sortants n'existe dans l'extension.
+- **Déconnexion et révocation en un clic** : Vous pouvez à tout moment utiliser le bouton « Déconnecter » situé en haut de la popup de l'extension pour révoquer localement la session active et le consentement enregistré, ou supprimer les cookies Google dans les paramètres de Thunderbird.
 
 ---
 
 ## 4. Contact
 
-Pour toute question concernant cette charte de confidentialité ou le traitement de vos données, vous pouvez ouvrir une issue sur le dépôt officiel du projet.
+Pour toute question relative à la confidentialité ou à la sécurité du code source, vous pouvez ouvrir un ticket sur le dépôt GitHub officiel du projet ou contacter l'auteur via https://mtfk.fr/.

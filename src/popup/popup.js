@@ -1,14 +1,11 @@
-// popup.js — Logique UI de la popup Thunderbird MV2
-// NotebookLM Clipper for Thunderbird
+// popup.js — Orchestrateur UI de la popup Thunderbird 128+ ESR (Manifest V3)
+// Magic Clipper for Gemini Notebook
+// Auteur : MTF Karukera
 //
 // Dépend de utils.js chargé avant lui (expose var NtcUtils → t())
-// Utilise browser.runtime.sendMessage pour communiquer avec background.js
+// Communique avec l'Event Page background.js via browser.runtime.sendMessage
 
 'use strict';
-
-// Gestion des erreurs globales : assurée par pre_loader.js (écouteur 'error'
-// en phase capture + window.__ntcRenderErrorScreen). Le doublon window.onerror
-// a été supprimé en revue 2026-06-10.
 
 // ─────────────────────────────────────────────
 // ALIAS UTIL (avec fallback défensif)
@@ -23,129 +20,30 @@ const t = (typeof NtcUtils !== 'undefined' && NtcUtils && NtcUtils.t)
   };
 
 // ─────────────────────────────────────────────
-// STATE DE LA POPUP
+// ÉTAT DE LA POPUP
 // ─────────────────────────────────────────────
 
-let _currentNotebookId  = null;
-let _currentMessageId   = null;
-let _pingInterval       = null;
-let _currentFormat      = null;  // 'pdf' | 'md' | 'attachment'
-let _isCapturing        = false; // P1.1b — verrou anti-double-clic
-let _captureTimeout     = null;  // P1.3  — timeout de secours (120s)
+let _currentState = null;
+let _currentNotebookId = null;
+let _currentMessageId = null;
+let _emailHasBody = true;
+let _canDownloadLastCapture = false;
+let _pingInterval = null;
+let _currentFormat = null;   // 'pdf' | 'md' | 'attachment'
+let _isCapturing = false;    // Verrou anti-double-clic
+let _captureTimeout = null;  // Timeout de sécurité réinitialisable (120s)
+let _notebooks = [];
+let _searchTerm = '';
+let _creatingNotebook = false;
 
-// Clés de storage : source unique dans NtcUtils (revue 2026-06-10)
 const STORAGE_KEYS = (typeof NtcUtils !== 'undefined' && NtcUtils.STORAGE_KEYS) || {
   ACTIVE_AUTHUSER: 'ntc_active_authuser',
   LAST_NOTEBOOK: 'ntc_last_notebook_id',
+  DATA_CONSENT: 'ntc_data_consent',
 };
 
 // ─────────────────────────────────────────────
-// GESTION DES ÉTATS
-// ─────────────────────────────────────────────
-
-/**
- * Affiche uniquement l'état demandé, masque tous les autres.
- *
- * @param {'authRequired'|'loading'|'ready'|'capturing'|'success'|'error'} name
- */
-function showState(name) {
-  // P1.3 — Toujours annuler le timeout de secours lors d'un changement d'état
-  if (_captureTimeout) {
-    clearTimeout(_captureTimeout);
-    _captureTimeout = null;
-  }
-
-  const idMap = {
-    authRequired : 'state-auth-required',
-    loading      : 'state-loading',
-    ready        : 'state-ready',
-    capturing    : 'state-capturing',
-    success      : 'state-success',
-    error        : 'state-error',
-  };
-
-  for (const [key, id] of Object.entries(idMap)) {
-    const el = document.getElementById(id);
-    if (el) {
-      el.classList.toggle('hidden', key !== name);
-    } else {
-      console.warn('[NTC] État introuvable dans le DOM :', id);
-    }
-  }
-
-  stopKeepAlive();
-  if (name === 'capturing') {
-    startKeepAlive();
-    // P1.3 — Timeout de secours : si aucun STATUS_UPDATE en 120s, basculer en erreur
-    _captureTimeout = setTimeout(() => {
-      _isCapturing = false;
-      setImportButtonsDisabled(false);
-      showError('TIMEOUT');
-    }, 120000);
-  }
-
-  // Déplacement logique du focus d'accessibilité vers l'écran d'état actif
-  const activeId = idMap[name];
-  const activeEl = document.getElementById(activeId);
-  if (activeEl) {
-    const heading = activeEl.querySelector('.state-heading');
-    if (heading) {
-      heading.setAttribute('tabindex', '-1');
-      heading.focus();
-    } else {
-      activeEl.setAttribute('tabindex', '-1');
-      activeEl.focus();
-    }
-  }
-
-  // [A11Y-M1] Gestion de aria-busy : true pendant l'état capturing, false sinon
-  const capturingEl = document.getElementById('state-capturing');
-  if (capturingEl) {
-    capturingEl.setAttribute('aria-busy', name === 'capturing' ? 'true' : 'false');
-  }
-}
-
-/**
- * P1.1b — Active/désactive les boutons d'import pour éviter les double-clics.
- */
-function setImportButtonsDisabled(disabled) {
-  const btns = document.querySelectorAll('#btn-pdf, #btn-md, #btn-import-attachments');
-  btns.forEach(btn => { btn.disabled = disabled; });
-}
-
-// ─────────────────────────────────────────────
-// INTERNATIONALISATION
-// ─────────────────────────────────────────────
-
-/**
- * Applique les traductions via attributs data-i18n sur tout le DOM.
- * Doit être appelée une seule fois au chargement.
- */
-function applyI18n() {
-  // Langue du document dynamique (P4.7)
-  document.documentElement.lang = browser.i18n.getUILanguage() || 'en';
-
-  // Contenu textuel
-  document.querySelectorAll('[data-i18n]').forEach(el => {
-    const key = el.getAttribute('data-i18n');
-    el.textContent = t(key);
-  });
-  // Attribut placeholder
-  document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
-    el.placeholder = t(el.getAttribute('data-i18n-placeholder'));
-  });
-  // Attribut title
-  document.querySelectorAll('[data-i18n-title]').forEach(el => {
-    el.title = t(el.getAttribute('data-i18n-title'));
-  });
-  // [A11Y-M3] Attribut aria-label (boutons icônes +, ✓, ✕)
-  document.querySelectorAll('[data-i18n-aria-label]').forEach(el => {
-    el.setAttribute('aria-label', t(el.getAttribute('data-i18n-aria-label')));
-  });
-}
-
-// ─────────────────────────────────────────────
-// KEEPALIVE (maintien popup ouverte lors d'upload long)
+// KEEPALIVE MV3 & TIMEOUT DYNAMIQUE
 // ─────────────────────────────────────────────
 
 function startKeepAlive() {
@@ -162,21 +60,269 @@ function stopKeepAlive() {
   }
 }
 
+function purgeBackgroundCaptureBuffer() {
+  _canDownloadLastCapture = false;
+  browser.runtime.sendMessage({ action: 'PURGE_CAPTURE' }).catch(() => {});
+}
+
+function resetCaptureTimeout() {
+  if (_captureTimeout) {
+    clearTimeout(_captureTimeout);
+  }
+  _captureTimeout = setTimeout(() => {
+    _captureTimeout = null;
+    _isCapturing = false;
+    setImportButtonsDisabled(false);
+    showError('TIMEOUT');
+  }, 120000);
+}
+
+function clearCaptureTimeout() {
+  if (_captureTimeout) {
+    clearTimeout(_captureTimeout);
+    _captureTimeout = null;
+  }
+}
+
+// ─────────────────────────────────────────────
+// GESTION DES ÉTATS & FOCUS ACCESSIBLE
+// ─────────────────────────────────────────────
+
+function resetBatchProgress() {
+  const batchEl = document.getElementById('batch-progress');
+  const track = document.getElementById('batch-progress-track');
+  const fill = document.getElementById('progress-bar-fill');
+  const label = document.getElementById('batch-progress-label');
+  if (batchEl) batchEl.classList.add('hidden');
+  if (fill) fill.style.width = '0%';
+  if (label) label.textContent = '';
+  if (track) {
+    track.setAttribute('aria-valuenow', '0');
+    track.removeAttribute('aria-valuetext');
+  }
+}
+
+function showInlineReadyError(msg) {
+  const el = document.getElementById('ready-inline-error');
+  if (!el) return;
+  if (msg) {
+    el.textContent = msg;
+    el.classList.remove('hidden');
+  } else {
+    el.textContent = '';
+    el.classList.add('hidden');
+  }
+}
+
+/**
+ * Place le focus clavier sur le premier élément pertinent de l'écran actif.
+ *
+ * @param {string} stateName
+ * @param {HTMLElement|null} activeEl
+ */
+function focusActiveStateTarget(stateName, activeEl) {
+  if (!activeEl) return;
+
+  let target = null;
+  if (stateName === 'authRequired') {
+    const cb = document.getElementById('consent-checkbox');
+    const btn = document.getElementById('btn-connect');
+    target = (cb && !cb.checked) ? cb : btn;
+  } else if (stateName === 'ready') {
+    target = document.getElementById('notebook-search');
+  } else if (stateName === 'success') {
+    const btnOpen = document.getElementById('btn-open-notebook');
+    target = (btnOpen && !btnOpen.classList.contains('hidden'))
+      ? btnOpen
+      : document.getElementById('btn-new-import');
+  } else if (stateName === 'error') {
+    const btnReconnect = document.getElementById('btn-reconnect');
+    target = (btnReconnect && !btnReconnect.classList.contains('hidden'))
+      ? btnReconnect
+      : document.getElementById('btn-back');
+  }
+
+  if (target && !target.disabled) {
+    target.focus();
+    return;
+  }
+
+  const heading = activeEl.querySelector('.state-heading');
+  if (heading) {
+    heading.setAttribute('tabindex', '-1');
+    heading.focus();
+  } else {
+    activeEl.setAttribute('tabindex', '-1');
+    activeEl.focus();
+  }
+}
+
+/**
+ * Affiche uniquement l'état demandé, masque tous les autres et synchronise ARIA/KeepAlive.
+ *
+ * @param {'authRequired'|'loading'|'ready'|'capturing'|'success'|'error'} name
+ */
+function showState(name) {
+  const enteringCapturing = (name === 'capturing' && _currentState !== 'capturing');
+  const stateChanged = (_currentState !== name);
+  _currentState = name;
+
+  if (name !== 'capturing') {
+    clearCaptureTimeout();
+  }
+
+  const idMap = {
+    authRequired: 'state-auth-required',
+    loading: 'state-loading',
+    ready: 'state-ready',
+    capturing: 'state-capturing',
+    success: 'state-success',
+    error: 'state-error',
+  };
+
+  for (const [key, id] of Object.entries(idMap)) {
+    const el = document.getElementById(id);
+    if (el) {
+      el.classList.toggle('hidden', key !== name);
+    }
+  }
+
+  // Synchronisation dynamique de aria-busy sur les états d'attente
+  const loadingEl = document.getElementById('state-loading');
+  if (loadingEl) {
+    loadingEl.setAttribute('aria-busy', name === 'loading' ? 'true' : 'false');
+  }
+  const capturingEl = document.getElementById('state-capturing');
+  if (capturingEl) {
+    capturingEl.setAttribute('aria-busy', name === 'capturing' ? 'true' : 'false');
+  }
+
+  if (name === 'ready') {
+    showInlineReadyError(null);
+  }
+
+  if (enteringCapturing) {
+    resetBatchProgress();
+    const statusEl = document.getElementById('capturing-status');
+    if (statusEl) statusEl.textContent = t('statusCapturing');
+  }
+
+  // Maintien de l'Event Page MV3 éveillée pendant l'upload ET sur l'écran succès
+  // tant que le bouton Télécharger est affiché (garantit le quota natif 200 Mo sans sous-limite)
+  if (name === 'capturing') {
+    startKeepAlive();
+    resetCaptureTimeout();
+  } else if (name === 'success' && _canDownloadLastCapture) {
+    startKeepAlive();
+  } else {
+    stopKeepAlive();
+  }
+
+  if (stateChanged) {
+    const activeEl = document.getElementById(idMap[name]);
+    focusActiveStateTarget(name, activeEl);
+  }
+}
+
+/**
+ * Active/désactive les boutons d'import en respectant la présence réelle d'un corps email
+ * et la sélection éventuelle de pièces jointes.
+ */
+function setImportButtonsDisabled(disabled) {
+  const btnPdf = document.getElementById('btn-pdf');
+  const btnMd = document.getElementById('btn-md');
+  const btnAtt = document.getElementById('btn-import-attachments');
+
+  if (disabled) {
+    if (btnPdf) btnPdf.disabled = true;
+    if (btnMd) btnMd.disabled = true;
+    if (btnAtt) btnAtt.disabled = true;
+  } else {
+    if (btnPdf) btnPdf.disabled = !_emailHasBody;
+    if (btnMd) btnMd.disabled = !_emailHasBody;
+    onAttachmentCheckboxChange();
+  }
+}
+
+// ─────────────────────────────────────────────
+// INTERNATIONALISATION
+// ─────────────────────────────────────────────
+
+/**
+ * Applique les traductions via attributs data-i18n* sur tout le DOM.
+ */
+function applyI18n() {
+  document.documentElement.lang = browser.i18n.getUILanguage() || 'en';
+
+  document.querySelectorAll('[data-i18n]').forEach((el) => {
+    el.textContent = t(el.getAttribute('data-i18n'));
+  });
+  document.querySelectorAll('[data-i18n-placeholder]').forEach((el) => {
+    el.placeholder = t(el.getAttribute('data-i18n-placeholder'));
+  });
+  document.querySelectorAll('[data-i18n-title]').forEach((el) => {
+    el.title = t(el.getAttribute('data-i18n-title'));
+  });
+  document.querySelectorAll('[data-i18n-aria-label]').forEach((el) => {
+    el.setAttribute('aria-label', t(el.getAttribute('data-i18n-aria-label')));
+  });
+}
+
+// ─────────────────────────────────────────────
+// CONSENTEMENT & AUTHENTIFICATION
+// ─────────────────────────────────────────────
+
+function syncConsentControls(consentGranted) {
+  const cb = document.getElementById('consent-checkbox');
+  const btn = document.getElementById('btn-connect');
+  if (cb) {
+    cb.checked = Boolean(consentGranted);
+  }
+  if (btn) {
+    btn.disabled = !(cb && cb.checked);
+  }
+}
+
+async function loadAccounts() {
+  const section = document.getElementById('account-section');
+  const sel = document.getElementById('account-select');
+  if (!section || !sel) return;
+
+  try {
+    const accountsResp = await browser.runtime.sendMessage({ action: 'GET_ACCOUNTS' });
+    if (accountsResp && Array.isArray(accountsResp.accounts) && accountsResp.accounts.length > 1) {
+      while (sel.firstChild) sel.removeChild(sel.firstChild);
+      accountsResp.accounts.forEach((acc) => {
+        const opt = document.createElement('option');
+        opt.value = String(acc.index);
+        opt.textContent = acc.email;
+        sel.appendChild(opt);
+      });
+      const stored = await browser.storage.local.get(STORAGE_KEYS.ACTIVE_AUTHUSER);
+      const activeIndex = stored[STORAGE_KEYS.ACTIVE_AUTHUSER] !== undefined
+        ? stored[STORAGE_KEYS.ACTIVE_AUTHUSER]
+        : 0;
+      sel.value = String(activeIndex);
+      section.classList.remove('hidden');
+    } else {
+      section.classList.add('hidden');
+    }
+  } catch (_e) {
+    section.classList.add('hidden');
+  }
+}
+
 // ─────────────────────────────────────────────
 // MÉTADONNÉES EMAIL
 // ─────────────────────────────────────────────
 
-/**
- * Tronque une chaîne à maxLen caractères avec ellipse.
- */
 function truncate(str, maxLen) {
   if (!str) return '';
-  return str.length > maxLen ? str.slice(0, maxLen - 1) + '…' : str;
+  return str.length > maxLen ? `${str.slice(0, maxLen - 1)}…` : str;
 }
 
 /**
- * Charge les métadonnées de l'email actif depuis le background et
- * met à jour l'UI.
+ * Charge les métadonnées du courriel actif depuis le background et prépare l'écran ready.
  */
 async function loadEmailMeta() {
   showState('loading');
@@ -189,33 +335,48 @@ async function loadEmailMeta() {
     return;
   }
 
-  if (meta && meta.error) { showError(meta.code || 'UNKNOWN', meta.detail || meta.message); return; }
+  if (meta && meta.error) {
+    showError(meta.code || 'UNKNOWN', meta.detail || meta.message);
+    return;
+  }
 
-  // Remplir les métadonnées
   const subEl = document.getElementById('meta-subject');
-  if (subEl) subEl.textContent = truncate(meta.subject, 60);
+  if (subEl) {
+    const fullSub = meta.subject || '';
+    subEl.textContent = truncate(fullSub, 60);
+    subEl.title = fullSub;
+  }
 
   const fromEl = document.getElementById('meta-from');
-  if (fromEl) fromEl.textContent = truncate(meta.from, 45);
+  if (fromEl) {
+    const fullFrom = meta.from || '';
+    fromEl.textContent = truncate(fullFrom, 45);
+    fromEl.title = fullFrom;
+  }
 
   const dateEl = document.getElementById('meta-date');
   if (dateEl) {
-    // meta.date est null si absente (revue 2026-06-10) — libellé i18n
-    dateEl.textContent = meta.date
+    const dateText = meta.date
       ? new Date(meta.date).toLocaleString()
       : t('labelDateUnknown');
+    dateEl.textContent = dateText;
+    dateEl.title = dateText;
   }
 
   _currentMessageId = meta.messageId;
+  _emailHasBody = Boolean(meta.hasMd);
 
-  // Section PJ
+  const btnPdf = document.getElementById('btn-pdf');
+  const btnMd = document.getElementById('btn-md');
+  if (btnPdf) btnPdf.disabled = !_emailHasBody;
+  if (btnMd) btnMd.disabled = !_emailHasBody;
+
   renderAttachments(meta.attachments || []);
 
-  // Charger les carnets — loadNotebooks retourne false si elle a basculé
-  // l'UI vers un autre état (ex: authRequired sur AUTH_EXPIRED) :
-  // ne pas écraser cet état avec 'ready' (audit release 2026-06-10).
   const notebooksOk = await loadNotebooks();
   if (notebooksOk === false) return;
+
+  await loadAccounts();
   showState('ready');
 }
 
@@ -224,104 +385,130 @@ async function loadEmailMeta() {
 // ─────────────────────────────────────────────
 
 /**
- * Rend la liste des pièces jointes filtrées dans l'UI.
+ * Rend la liste des pièces jointes filtrées dans l'UI avec associations ARIA complètes.
  *
- * @param {Array} attachments - Retour filtré du background.
+ * @param {Array} attachments
  */
 function renderAttachments(attachments) {
   const section = document.getElementById('attachments-section');
-  const list    = document.getElementById('attachment-list');
+  const list = document.getElementById('attachment-list');
   if (!section || !list) return;
 
-  // Vider la liste (createElement — pas d'innerHTML)
   while (list.firstChild) list.removeChild(list.firstChild);
 
   if (attachments.length === 0) {
     section.classList.add('hidden');
+    onAttachmentCheckboxChange();
     return;
   }
 
   section.classList.remove('hidden');
 
-  attachments.forEach(att => {
-    const li       = document.createElement('li');
-    li.className   = 'attachment-item' + (att.tooLarge ? ' disabled' : '');
+  attachments.forEach((att, idx) => {
+    const safePartId = String(att.partName || idx).replace(/[^a-zA-Z0-9_-]/g, '_');
+    const cbId = `att-cb-${safePartId}-${idx}`;
+    const descIds = [];
 
-    const cb       = document.createElement('input');
-    cb.type        = 'checkbox';
-    cb.id          = `att-${att.partName}`;
-    cb.dataset.partName    = att.partName;
-    cb.dataset.name        = att.name;
+    const li = document.createElement('li');
+    li.className = `attachment-item${att.tooLarge ? ' disabled' : ''}`;
+
+    const cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.id = cbId;
+    cb.dataset.partName = att.partName;
+    cb.dataset.name = att.name;
     cb.dataset.contentType = att.contentType;
-    // PJ > 200 MB : visible mais jamais importable (revue 2026-06-10)
+
     if (att.tooLarge) {
       cb.disabled = true;
-      li.title    = t('errorAttachmentTooLarge');
+      li.title = t('errorAttachmentTooLarge');
     } else {
       cb.addEventListener('change', onAttachmentCheckboxChange);
     }
 
-    const label    = document.createElement('label');
-    label.htmlFor  = `att-${att.partName}`;
+    const label = document.createElement('label');
+    label.htmlFor = cbId;
     label.className = 'attachment-name';
     label.textContent = att.name;
+    label.title = att.name;
 
-    const size     = document.createElement('span');
-    size.className = 'attachment-size' + (att.tooLarge ? ' too-large' : '');
+    const size = document.createElement('span');
+    size.className = `attachment-size${att.tooLarge ? ' too-large' : ''}`;
     if (att.size) {
+      size.id = `att-size-${safePartId}-${idx}`;
       size.textContent = att.size > 1024 * 1024
         ? `${(att.size / 1024 / 1024).toFixed(1)} MB`
-        : `${Math.round(att.size / 1024)} KB`;
+        : `${Math.max(1, Math.round(att.size / 1024))} KB`;
+      descIds.push(size.id);
     }
 
     li.appendChild(cb);
     li.appendChild(label);
     li.appendChild(size);
 
-    // PJ sans type reconnu : décochée par défaut, import texte sur opt-in
-    // explicite — badge informatif (revue 2026-06-10).
-    if (att.unknownType && !att.tooLarge) {
+    if (att.tooLarge) {
+      const errSpan = document.createElement('span');
+      errSpan.id = `att-err-${safePartId}-${idx}`;
+      errSpan.className = 'visually-hidden';
+      errSpan.textContent = t('errorAttachmentTooLarge');
+      li.appendChild(errSpan);
+      descIds.push(errSpan.id);
+    } else if (att.unknownType) {
       const flag = document.createElement('span');
-      flag.className   = 'attachment-flag';
-      flag.textContent = t('attachmentUnknownType');
+      flag.id = `att-flag-${safePartId}-${idx}`;
+      flag.className = 'attachment-flag';
+      const flagLabel = t('attachmentUnknownType');
+      flag.textContent = flagLabel;
+      flag.title = flagLabel;
       li.appendChild(flag);
+      descIds.push(flag.id);
+    }
+
+    if (descIds.length > 0) {
+      cb.setAttribute('aria-describedby', descIds.join(' '));
     }
 
     list.appendChild(li);
   });
+
+  // Toujours synchroniser l'état du bouton PJ et du champ d'intention (évite tout état rassis)
+  onAttachmentCheckboxChange();
 }
 
 /**
- * Met à jour le bouton d'import PJ en fonction du nombre de cases cochées.
+ * Met à jour le bouton d'import PJ et désactive en douceur la note d'intention
+ * (sans masquer le bloc afin d'éviter tout saut de mise en page).
  */
 function onAttachmentCheckboxChange() {
-  const checked  = document.querySelectorAll('#attachment-list input[type="checkbox"]:checked');
-  const btn      = document.getElementById('btn-import-attachments');
+  const checked = document.querySelectorAll('#attachment-list input[type="checkbox"]:checked');
+  const btn = document.getElementById('btn-import-attachments');
   const intentWr = document.getElementById('intent-wrapper');
+  const intentTa = document.getElementById('intent-note');
   if (!btn || !intentWr) return;
 
-  if (checked.length > 0) {
+  const hasChecked = checked.length > 0;
+  if (hasChecked) {
     btn.classList.remove('hidden');
-    btn.disabled      = false;
-    btn.textContent   = t('btnImportSelection', [String(checked.length)]);
-    intentWr.classList.add('hidden');
+    btn.disabled = _isCapturing;
+    btn.textContent = t('btnImportSelection', [String(checked.length)]);
+    intentWr.classList.add('is-disabled');
+    if (intentTa) intentTa.disabled = true;
   } else {
     btn.classList.add('hidden');
     btn.disabled = true;
-    intentWr.classList.remove('hidden');
+    intentWr.classList.remove('is-disabled');
+    if (intentTa) intentTa.disabled = false;
   }
 }
 
 // ─────────────────────────────────────────────
-// CARNETS
+// CARNETS NOTEBOOKLM
 // ─────────────────────────────────────────────
-
-let _notebooks  = [];
-let _searchTerm = '';
 
 async function loadNotebooks() {
   const list = document.getElementById('notebook-list');
-  if (!list) return;
+  if (!list) return true;
+  while (list.firstChild) list.removeChild(list.firstChild);
   list.setAttribute('data-empty', t('loadingNotebooks'));
 
   let resp;
@@ -329,60 +516,74 @@ async function loadNotebooks() {
     resp = await browser.runtime.sendMessage({ action: 'GET_NOTEBOOKS' });
   } catch (err) {
     const { code } = classifyError(err);
-    // Session expirée → écran de reconnexion, pas un "aucun carnet trouvé"
-    // trompeur (revue 2026-06-10, amélioration 11). Retourne false pour
-    // que l'appelant n'écrase pas cet état avec 'ready'.
     if (code === 'AUTH_EXPIRED') {
       showState('authRequired');
       return false;
     }
     console.error('[NTC-UI] Échec du chargement des carnets :', err.message);
+    _notebooks = [];
+    _currentNotebookId = null;
     list.setAttribute('data-empty', t(ERROR_KEYS[code] || 'errorUnknown'));
     return true;
   }
 
-  _notebooks = (resp && resp.notebooks) ? resp.notebooks : [];
+  if (resp && resp.error) {
+    const code = ERROR_KEYS[resp.code] ? resp.code : 'UNKNOWN';
+    if (code === 'AUTH_EXPIRED') {
+      showState('authRequired');
+      return false;
+    }
+    _notebooks = [];
+    _currentNotebookId = null;
+    list.setAttribute('data-empty', t(ERROR_KEYS[code]));
+    return true;
+  }
 
-  // Tenter de restaurer le dernier carnet sélectionné
+  _notebooks = (resp && Array.isArray(resp.notebooks)) ? resp.notebooks : [];
+
+  // Restaurer le dernier carnet sélectionné UNIQUEMENT s'il appartient aux carnets du compte actif
   const stored = await browser.storage.local.get(STORAGE_KEYS.LAST_NOTEBOOK);
-  if (stored[STORAGE_KEYS.LAST_NOTEBOOK]) {
-    _currentNotebookId = stored[STORAGE_KEYS.LAST_NOTEBOOK];
+  const candidateId = stored[STORAGE_KEYS.LAST_NOTEBOOK] || null;
+  if (
+    candidateId &&
+    candidateId !== '__diag__' &&
+    _notebooks.some((nb) => nb.id === candidateId)
+  ) {
+    _currentNotebookId = candidateId;
+  } else {
+    _currentNotebookId = null;
   }
 
   renderNotebooks(_notebooks);
   return true;
 }
 
-/**
- * Rend la liste filtrée des carnets.
- *
- * @param {Array} notebooks
- */
 function renderNotebooks(notebooks) {
-  const list    = document.getElementById('notebook-list');
+  const list = document.getElementById('notebook-list');
   if (!list) return;
-  const term    = _searchTerm.toLowerCase();
+  const term = _searchTerm.toLowerCase();
   const filtered = term
-    ? notebooks.filter(nb => nb.title.toLowerCase().includes(term))
+    ? notebooks.filter((nb) => nb.title.toLowerCase().includes(term))
     : notebooks;
 
   while (list.firstChild) list.removeChild(list.firstChild);
   list.setAttribute('data-empty', t('noNotebookFound'));
 
-  filtered.forEach(nb => {
+  filtered.forEach((nb, idx) => {
     const li = document.createElement('li');
-    // Entrées diagnostic (mode DEBUG) : affichées mais jamais sélectionnables
-    // (revue 2026-06-10, bug 6 — défense en profondeur).
     const isDiag = nb.id === '__diag__';
-    li.id = 'nb-option-' + nb.id;
-    li.className  = 'notebook-item'
-      + (isDiag ? ' diag' : '')
-      + (!isDiag && nb.id === _currentNotebookId ? ' selected' : '');
-    li.role       = 'option';
+    const isSelected = !isDiag && nb.id === _currentNotebookId;
+    const safeId = String(nb.id || idx).replace(/[^a-zA-Z0-9_-]/g, '_');
+
+    li.id = `nb-option-${safeId}-${idx}`;
+    li.className = `notebook-item${isDiag ? ' diag' : ''}${isSelected ? ' selected' : ''}`;
+    li.setAttribute('role', 'option');
     li.dataset.id = nb.id;
     li.textContent = nb.title;
-    li.setAttribute('aria-selected', !isDiag && nb.id === _currentNotebookId ? 'true' : 'false');
+    li.title = nb.title;
+    li.setAttribute('aria-selected', isSelected ? 'true' : 'false');
     li.tabIndex = -1;
+
     if (isDiag) {
       li.setAttribute('aria-disabled', 'true');
     } else {
@@ -391,7 +592,6 @@ function renderNotebooks(notebooks) {
     list.appendChild(li);
   });
 
-  // Mettre à jour aria-activedescendant sur la liste si un élément est sélectionné
   const selectedEl = list.querySelector('.notebook-item.selected');
   if (selectedEl) {
     list.setAttribute('aria-activedescendant', selectedEl.id);
@@ -401,45 +601,52 @@ function renderNotebooks(notebooks) {
 }
 
 function selectNotebook(id, _title, liEl) {
-  if (id === '__diag__') return;  // jamais sélectionnable (bug 6)
+  if (id === '__diag__') return;
   _currentNotebookId = id;
+  showInlineReadyError(null);
+
   const list = document.getElementById('notebook-list');
-  document.querySelectorAll('.notebook-item').forEach(el => {
-    el.classList.toggle('selected', el === liEl);
-    el.setAttribute('aria-selected', el === liEl ? 'true' : 'false');
+  document.querySelectorAll('#notebook-list .notebook-item').forEach((el) => {
+    const isTarget = el === liEl;
+    el.classList.toggle('selected', isTarget);
+    el.setAttribute('aria-selected', isTarget ? 'true' : 'false');
   });
-  if (liEl) {
-    list.setAttribute('aria-activedescendant', liEl.id);
-  } else {
-    list.removeAttribute('aria-activedescendant');
+  if (list) {
+    if (liEl) {
+      list.setAttribute('aria-activedescendant', liEl.id);
+    } else {
+      list.removeAttribute('aria-activedescendant');
+    }
   }
-  browser.storage.local.set({ [STORAGE_KEYS.LAST_NOTEBOOK]: id });
+  browser.storage.local.set({ [STORAGE_KEYS.LAST_NOTEBOOK]: id }).catch(() => {});
 }
 
 function handleNotebookListKeyDown(e) {
   const items = Array.from(document.querySelectorAll('#notebook-list .notebook-item:not(.diag)'));
   if (items.length === 0) return;
 
-  let currentIndex = items.findIndex(el => el.classList.contains('selected'));
+  let currentIndex = items.findIndex((el) => el.classList.contains('selected'));
 
   if (e.key === 'ArrowDown') {
     e.preventDefault();
-    currentIndex = (currentIndex + 1) % items.length;
+    currentIndex = currentIndex < 0 ? 0 : (currentIndex + 1) % items.length;
     const nextItem = items[currentIndex];
     selectNotebook(nextItem.dataset.id, nextItem.textContent, nextItem);
     nextItem.scrollIntoView({ block: 'nearest' });
   } else if (e.key === 'ArrowUp') {
     e.preventDefault();
-    currentIndex = (currentIndex - 1 + items.length) % items.length;
+    currentIndex = currentIndex <= 0 ? items.length - 1 : currentIndex - 1;
     const prevItem = items[currentIndex];
     selectNotebook(prevItem.dataset.id, prevItem.textContent, prevItem);
     prevItem.scrollIntoView({ block: 'nearest' });
   } else if (e.key === 'Enter' || e.key === ' ') {
     e.preventDefault();
-    const btnPdf = document.getElementById('btn-pdf');
-    if (btnPdf) btnPdf.focus();
+    if (currentIndex < 0) {
+      selectNotebook(items[0].dataset.id, items[0].textContent, items[0]);
+    }
+    const firstAction = document.querySelector('#btn-pdf:not(:disabled), #btn-import-attachments:not(:disabled)');
+    if (firstAction) firstAction.focus();
   } else if (e.key === 'Escape') {
-    // [A11Y-B4] Pattern ARIA listbox : Escape renvoie le focus à la recherche
     e.preventDefault();
     const searchEl = document.getElementById('notebook-search');
     if (searchEl) searchEl.focus();
@@ -447,34 +654,23 @@ function handleNotebookListKeyDown(e) {
 }
 
 // ─────────────────────────────────────────────
-// ERREURS
+// ERREURS & SUCCÈS
 // ─────────────────────────────────────────────
 
-/** Mapping code d'erreur → clé i18n */
 const ERROR_KEYS = {
-  AUTH_EXPIRED             : 'errorAuthExpired',
-  API_CHANGED              : 'errorApiChanged',
-  UPLOAD_SESSION_MISSING   : 'errorUploadSessionMissing',
-  TIMEOUT                  : 'errorTimeout',
-  INJECTION_FAILED         : 'errorInjectionFailed',
-  NO_EMAIL_DISPLAYED       : 'errorNoEmailDisplayed',
-  EMPTY_EMAIL_BODY         : 'errorEmptyEmailBody',
-  ATTACHMENT_TOO_LARGE     : 'errorAttachmentTooLarge',
-  INVALID_TITLE            : 'errorInvalidTitle',
-  UNKNOWN                  : 'errorUnknown',
+  AUTH_EXPIRED: 'errorAuthExpired',
+  API_CHANGED: 'errorApiChanged',
+  UPLOAD_SESSION_MISSING: 'errorUploadSessionMissing',
+  TIMEOUT: 'errorTimeout',
+  INJECTION_FAILED: 'errorInjectionFailed',
+  NO_EMAIL_DISPLAYED: 'errorNoEmailDisplayed',
+  EMPTY_EMAIL_BODY: 'errorEmptyEmailBody',
+  ATTACHMENT_TOO_LARGE: 'errorAttachmentTooLarge',
+  WORD_LIMIT_EXCEEDED: 'errorWordLimitExceeded',
+  INVALID_TITLE: 'errorInvalidTitle',
+  UNKNOWN: 'errorUnknown',
 };
 
-/**
- * Normalise une erreur reçue du background via runtime.sendMessage.
- *
- * ⚠️ Gecko ne sérialise QUE err.message lors d'un rejet de sendMessage —
- * les propriétés custom (err.code) sont perdues. Le background encode donc
- * le code d'erreur dans le message (ex: new Error('AUTH_EXPIRED')), et on
- * mappe ici par message (revue 2026-06-10, bug 1).
- *
- * @param {Error} e - Erreur intercptée côté popup.
- * @returns {{ code: string, detail: string|null }}
- */
 function classifyError(e) {
   if (e && e.code && ERROR_KEYS[e.code]) {
     return { code: e.code, detail: e.detail || null };
@@ -485,74 +681,75 @@ function classifyError(e) {
   return { code: 'UNKNOWN', detail: e ? e.message : null };
 }
 
-/**
- * Affiche l'état erreur avec le bon message et les boutons adaptés.
- *
- * @param {string} code - Code d'erreur normalisé.
- */
 function showError(code, detail) {
-  const key = ERROR_KEYS[code] || ERROR_KEYS.UNKNOWN;
+  const normalizedCode = ERROR_KEYS[code] ? code : 'UNKNOWN';
+  const key = ERROR_KEYS[normalizedCode];
   const errEl = document.getElementById('error-message');
   if (errEl) {
     let msg = t(key);
-    if (detail) {
+    if (detail && detail !== normalizedCode && !ERROR_KEYS[detail]) {
       msg += `\n(${detail})`;
     }
     errEl.textContent = msg;
   }
 
+  // Ne jamais laisser le bouton Se reconnecter visible hors expiration de session
   const btnReconnect = document.getElementById('btn-reconnect');
   if (btnReconnect) {
-    btnReconnect.classList.toggle('hidden', code !== 'AUTH_EXPIRED');
+    btnReconnect.classList.toggle('hidden', normalizedCode !== 'AUTH_EXPIRED');
   }
 
   showState('error');
 }
 
-// ─────────────────────────────────────────────
-// SUCCÈS
-// ─────────────────────────────────────────────
-
-/**
- * Affiche l'état succès avec le lien carnet et les boutons optionnels.
- *
- * @param {object} payload - { notebookId, showDownload, fileType, warnings }
- */
 function showSuccess(payload) {
+  _canDownloadLastCapture = Boolean(payload.showDownload);
+
   const btnOpen = document.getElementById('btn-open-notebook');
   if (btnOpen) {
     if (payload.notebookId) {
-      // [A11Y-B5] btn-open-notebook est désormais un <button> — l'URL est stockée dans dataset
-      browser.storage.local.get(STORAGE_KEYS.ACTIVE_AUTHUSER).then(stored => {
-        const index = stored[STORAGE_KEYS.ACTIVE_AUTHUSER] !== undefined ? stored[STORAGE_KEYS.ACTIVE_AUTHUSER] : 0;
-        btnOpen.dataset.notebookUrl = NtcUtils.buildNotebookUrl(payload.notebookId, index);
-      }).catch(() => {
-        btnOpen.dataset.notebookUrl = NtcUtils.buildNotebookUrl(payload.notebookId);
-      });
+      // Construction synchrone immédiate (évite toute course au clic rapide)
+      btnOpen.dataset.notebookUrl = NtcUtils.buildNotebookUrl(
+        payload.notebookId,
+        payload.authuserIndex !== undefined ? payload.authuserIndex : 0
+      );
       btnOpen.classList.remove('hidden');
     } else {
+      delete btnOpen.dataset.notebookUrl;
       btnOpen.classList.add('hidden');
     }
   }
 
   const btnDownload = document.getElementById('btn-download');
   if (btnDownload) {
-    btnDownload.classList.toggle('hidden', !payload.showDownload);
-    if (payload.showDownload) {
+    btnDownload.classList.toggle('hidden', !_canDownloadLastCapture);
+    if (_canDownloadLastCapture) {
       btnDownload.dataset.fileType = payload.fileType || 'pdf';
     }
   }
 
-  // Avertissements d'import partiel
   const warningsEl = document.getElementById('warnings-container');
   if (warningsEl) {
     warningsEl.classList.add('hidden');
     while (warningsEl.firstChild) warningsEl.removeChild(warningsEl.firstChild);
 
-    if (payload.warnings && payload.warnings.length > 0) {
+    let hasAnyWarning = false;
+
+    if (Array.isArray(payload.warnings) && payload.warnings.length > 0) {
       const msg = document.createElement('p');
-      msg.textContent = t('warningPartialImport', [String(payload.warnings.length)]);
+      msg.textContent = `${t('warningPartialImport', [String(payload.warnings.length)])} (${payload.warnings.join(', ')})`;
       warningsEl.appendChild(msg);
+      hasAnyWarning = true;
+    }
+
+    if (payload.hasNonLatinGlyphs) {
+      const glyphMsg = document.createElement('p');
+      glyphMsg.textContent = t('warningPdfNonLatin');
+      warningsEl.appendChild(glyphMsg);
+      hasAnyWarning = true;
+    }
+
+    if (hasAnyWarning) {
       warningsEl.classList.remove('hidden');
     }
   }
@@ -565,87 +762,98 @@ function showSuccess(payload) {
 // ─────────────────────────────────────────────
 
 function updateBatchProgress(current, total) {
-  const batchEl  = document.getElementById('batch-progress');
-  const fill     = document.getElementById('progress-bar-fill');
-  const label    = document.getElementById('batch-progress-label');
-  if (!batchEl || !fill || !label) return;
+  const batchEl = document.getElementById('batch-progress');
+  const track = document.getElementById('batch-progress-track');
+  const fill = document.getElementById('progress-bar-fill');
+  const label = document.getElementById('batch-progress-label');
+  if (!batchEl || !fill || !label || !total) return;
 
   batchEl.classList.remove('hidden');
-  const pct = Math.round((current / total) * 100);
+  const pct = Math.min(100, Math.max(0, Math.round((current / total) * 100)));
+  const labelText = t('statusBatchProgress', [String(current), String(total)]);
   fill.style.width = `${pct}%`;
-  label.textContent = t('statusBatchProgress', [String(current), String(total)]);
+  label.textContent = labelText;
+
+  if (track) {
+    track.setAttribute('aria-valuenow', String(pct));
+    track.setAttribute('aria-valuetext', labelText);
+  }
 }
 
 // ─────────────────────────────────────────────
-// IMPORT — DÉCLENCHEMENT
+// DÉCLENCHEMENT DES IMPORTS
 // ─────────────────────────────────────────────
 
 function getIntentNote() {
   const ta = document.getElementById('intent-note');
-  return ta ? ta.value.trim() || null : null;
+  return (ta && !ta.disabled) ? (ta.value.trim() || null) : null;
 }
 
-/**
- * Lance un import email (PDF ou MD).
- *
- * @param {string} format - 'pdf' | 'md'
- */
-function startEmailCapture(format) {
-  if (_isCapturing) return; // P1.1b — anti-double-clic
-
-  if (!_currentNotebookId) {
-    document.getElementById('error-message').textContent = t('errNoNotebook');
-    showState('error');
-    return;
+function requireSelectedNotebook() {
+  if (_currentNotebookId) {
+    showInlineReadyError(null);
+    return true;
   }
+  showInlineReadyError(t('errNoNotebook'));
+  const list = document.getElementById('notebook-list');
+  if (list) list.focus();
+  return false;
+}
+
+function startEmailCapture(format) {
+  if (_isCapturing) return;
+  if (!requireSelectedNotebook()) return;
 
   _isCapturing = true;
+  _canDownloadLastCapture = false;
   setImportButtonsDisabled(true);
   _currentFormat = format;
   showState('capturing');
 
   browser.runtime.sendMessage({
-    action     : 'START_CAPTURE',
+    action: 'START_CAPTURE',
     format,
-    notebookId : _currentNotebookId,
-    intentNote : getIntentNote(),
+    notebookId: _currentNotebookId,
+    messageId: _currentMessageId,
+    intentNote: getIntentNote(),
+  }).catch((err) => {
+    _isCapturing = false;
+    setImportButtonsDisabled(false);
+    const { code, detail } = classifyError(err);
+    showError(code, detail);
   });
 }
 
-
-
-/**
- * Lance un import de pièces jointes sélectionnées.
- */
 function startAttachmentCapture() {
-  if (_isCapturing) return; // P1.1b — anti-double-clic
-
-  if (!_currentNotebookId) {
-    document.getElementById('error-message').textContent = t('errNoNotebook');
-    showState('error');
-    return;
-  }
+  if (_isCapturing) return;
+  if (!requireSelectedNotebook()) return;
 
   const checked = [...document.querySelectorAll('#attachment-list input[type="checkbox"]:checked')];
   if (checked.length === 0) return;
 
-  const attachments = checked.map(cb => ({
-    partName   : cb.dataset.partName,
-    name       : cb.dataset.name,
+  const attachments = checked.map((cb) => ({
+    partName: cb.dataset.partName,
+    name: cb.dataset.name,
     contentType: cb.dataset.contentType,
   }));
 
   _isCapturing = true;
+  _canDownloadLastCapture = false;
   setImportButtonsDisabled(true);
   _currentFormat = 'attachment';
   showState('capturing');
 
   browser.runtime.sendMessage({
-    action      : 'START_CAPTURE',
-    format      : 'attachment',
-    notebookId  : _currentNotebookId,
-    messageId   : _currentMessageId,
+    action: 'START_CAPTURE',
+    format: 'attachment',
+    notebookId: _currentNotebookId,
+    messageId: _currentMessageId,
     attachments,
+  }).catch((err) => {
+    _isCapturing = false;
+    setImportButtonsDisabled(false);
+    const { code, detail } = classifyError(err);
+    showError(code, detail);
   });
 }
 
@@ -654,22 +862,32 @@ function startAttachmentCapture() {
 // ─────────────────────────────────────────────
 
 browser.runtime.onMessage.addListener((message) => {
-  if (message.type !== 'STATUS_UPDATE') return;
+  if (!message || message.type !== 'STATUS_UPDATE') return;
 
   switch (message.status) {
     case 'auth_ready':
-      loadEmailMeta();
+      loadEmailMeta().catch((err) => {
+        showError('UNKNOWN', err.message);
+      });
+      break;
+
+    case 'auth_closed':
+      // L'utilisateur a refermé l'onglet WebContent sans finaliser la connexion
+      showState('authRequired');
       break;
 
     case 'capturing':
     case 'uploading':
       showState('capturing');
+      resetCaptureTimeout();
       if (message.statusKey) {
-        document.getElementById('capturing-status').textContent = t(message.statusKey);
+        const statusEl = document.getElementById('capturing-status');
+        if (statusEl) statusEl.textContent = t(message.statusKey);
       }
       break;
 
     case 'info':
+      resetCaptureTimeout();
       if (message.batchProgress) {
         updateBatchProgress(message.batchProgress.current, message.batchProgress.total);
       }
@@ -679,10 +897,12 @@ browser.runtime.onMessage.addListener((message) => {
       _isCapturing = false;
       setImportButtonsDisabled(false);
       showSuccess({
-        notebookId  : message.notebookId || _currentNotebookId,
-        showDownload: !!message.showDownload,
-        fileType    : _currentFormat,
-        warnings    : message.warnings,
+        notebookId: message.notebookId || _currentNotebookId,
+        authuserIndex: message.authuserIndex,
+        showDownload: Boolean(message.showDownload),
+        fileType: _currentFormat,
+        warnings: message.warnings,
+        hasNonLatinGlyphs: Boolean(message.hasNonLatinGlyphs),
       });
       break;
 
@@ -695,76 +915,75 @@ browser.runtime.onMessage.addListener((message) => {
 });
 
 // ─────────────────────────────────────────────
-// CRÉATION DE CARNET INLINE (sprint 2 v1.0.5 — spec §5.3.1)
+// CRÉATION DE CARNET INLINE
 // ─────────────────────────────────────────────
 
-let _creatingNotebook = false;
-
-/** Met à jour l'état du bouton [✓] selon le contenu trimé de l'input. */
 function updateCreateConfirmState() {
   const input = document.getElementById('create-notebook-name');
-  const btn   = document.getElementById('btn-create-confirm');
+  const btn = document.getElementById('btn-create-confirm');
   if (!input || !btn) return;
   btn.disabled = _creatingNotebook || input.value.trim().length === 0;
 }
 
-/** Affiche/masque le message de statut sous la rangée de création. */
 function setCreateStatus(message, isError) {
   const el = document.getElementById('create-notebook-status');
+  const input = document.getElementById('create-notebook-name');
+  if (input) {
+    if (isError && message) {
+      input.setAttribute('aria-invalid', 'true');
+    } else {
+      input.removeAttribute('aria-invalid');
+    }
+  }
   if (!el) return;
   el.textContent = message || '';
-  el.classList.toggle('error', !!isError);
+  el.classList.toggle('error', Boolean(isError));
   el.classList.toggle('hidden', !message);
 }
 
-/**
- * Ouvre la rangée de création inline : masque la rangée de recherche,
- * préremplit l'input avec le terme de recherche courant, focus + sélection.
- */
 function openCreateNotebookRow() {
-  const searchRow = document.querySelector('.notebook-search-row:not(#create-notebook-row)');
+  const searchRow = document.getElementById('search-notebook-row');
   const createRow = document.getElementById('create-notebook-row');
-  const input     = document.getElementById('create-notebook-name');
-  const search    = document.getElementById('notebook-search');
+  const btnCreate = document.getElementById('btn-create-notebook');
+  const input = document.getElementById('create-notebook-name');
+  const search = document.getElementById('notebook-search');
   if (!createRow || !input) return;
 
   if (searchRow) searchRow.classList.add('hidden');
   createRow.classList.remove('hidden');
-  setCreateStatus(null);
+  if (btnCreate) btnCreate.setAttribute('aria-expanded', 'true');
+  setCreateStatus(null, false);
 
-  // slice(0, 100) : maxlength HTML ne s'applique pas aux affectations JS (audit sprint 2)
   input.value = (search ? search.value : '').trim().slice(0, 100);
   updateCreateConfirmState();
   input.focus();
   input.select();
 }
 
-/** Ferme la rangée de création et réaffiche la recherche. Saisie non conservée. */
-function closeCreateNotebookRow() {
-  if (_creatingNotebook) return;  // pas d'annulation pendant l'appel réseau
-  const searchRow = document.querySelector('.notebook-search-row:not(#create-notebook-row)');
+function closeCreateNotebookRow(restoreFocus = false) {
+  if (_creatingNotebook) return;
+  const searchRow = document.getElementById('search-notebook-row');
   const createRow = document.getElementById('create-notebook-row');
+  const btnCreate = document.getElementById('btn-create-notebook');
   if (createRow) createRow.classList.add('hidden');
   if (searchRow) searchRow.classList.remove('hidden');
-  setCreateStatus(null);
+  if (btnCreate) {
+    btnCreate.setAttribute('aria-expanded', 'false');
+    if (restoreFocus) btnCreate.focus();
+  }
+  setCreateStatus(null, false);
 }
 
-/** Active/désactive les contrôles de la rangée pendant l'appel réseau. */
 function setCreateRowBusy(busy) {
   _creatingNotebook = busy;
-  const input   = document.getElementById('create-notebook-name');
+  const input = document.getElementById('create-notebook-name');
   const confirm = document.getElementById('btn-create-confirm');
-  const cancel  = document.getElementById('btn-create-cancel');
-  if (input)   input.disabled   = busy;
-  if (cancel)  cancel.disabled  = busy;
+  const cancel = document.getElementById('btn-create-cancel');
+  if (input) input.disabled = busy;
+  if (cancel) cancel.disabled = busy;
   if (confirm) confirm.disabled = busy || !input || input.value.trim().length === 0;
 }
 
-/**
- * Crée le carnet : succès → carnet en tête de liste, sélectionné, recherche
- * vidée ; échec → erreur inline i18n, saisie conservée ; AUTH_EXPIRED →
- * écran de reconnexion. Plus jamais d'échec silencieux.
- */
 async function submitCreateNotebook() {
   const input = document.getElementById('create-notebook-name');
   if (!input || _creatingNotebook) return;
@@ -781,13 +1000,13 @@ async function submitCreateNotebook() {
     setCreateRowBusy(false);
     const { code, detail } = classifyError(err);
     if (code === 'AUTH_EXPIRED') {
-      setCreateStatus(null);  // ne pas laisser "Création…" affiché (audit sprint 2)
+      setCreateStatus(null, false);
       showState('authRequired');
       return;
     }
     console.error('[NTC-UI] Création carnet échouée :', err.message);
     let msg = (code && ERROR_KEYS[code]) ? t(ERROR_KEYS[code]) : t('errorCreateNotebook');
-    if (detail) msg += ` (${detail})`;
+    if (detail && detail !== code && !ERROR_KEYS[detail]) msg += ` (${detail})`;
     setCreateStatus(msg, true);
     input.focus();
     return;
@@ -801,28 +1020,25 @@ async function submitCreateNotebook() {
     return;
   }
 
-  // Succès : carnet en tête de liste, sélectionné, recherche réinitialisée
   _currentNotebookId = resp.id;
   _notebooks.unshift({ id: resp.id, title });
   _searchTerm = '';
   const search = document.getElementById('notebook-search');
   if (search) search.value = '';
+  showInlineReadyError(null);
   renderNotebooks(_notebooks);
-  browser.storage.local.set({ [STORAGE_KEYS.LAST_NOTEBOOK]: resp.id });
+  browser.storage.local.set({ [STORAGE_KEYS.LAST_NOTEBOOK]: resp.id }).catch(() => {});
   input.value = '';
-  closeCreateNotebookRow();
+  closeCreateNotebookRow(false);
+
+  const list = document.getElementById('notebook-list');
+  if (list) list.focus();
 }
 
 // ─────────────────────────────────────────────
-// HANDLERS DE BOUTONS (LIENS ET EVENEMENTS)
+// HANDLERS DE CONTRÔLES UI
 // ─────────────────────────────────────────────
 
-/**
- * Lie un gestionnaire d'événement de clic de manière sécurisée en vérifiant l'existence de l'élément.
- *
- * @param {string}   id      - ID de l'élément DOM.
- * @param {Function} handler - Callback de clic.
- */
 function safeBindClick(id, handler) {
   const el = document.getElementById(id);
   if (!el) {
@@ -831,38 +1047,73 @@ function safeBindClick(id, handler) {
   el.addEventListener('click', handler);
 }
 
+async function triggerConnectFlow(explicitConsent) {
+  showState('loading');
+  try {
+    const resp = await browser.runtime.sendMessage({
+      action: 'CONNECT_AUTH',
+      consent: Boolean(explicitConsent),
+    });
+    if (resp && resp.error === 'CONSENT_REQUIRED') {
+      syncConsentControls(false);
+      showState('authRequired');
+      return;
+    }
+    if (resp && resp.alreadyAuthenticated) {
+      await loadEmailMeta();
+    }
+  } catch (err) {
+    const { code, detail } = classifyError(err);
+    showError(code, detail);
+  }
+}
+
 function bindButtons() {
-  // Auth
-  safeBindClick('btn-connect', () => {
-    showState('loading');
-    browser.runtime.sendMessage({ action: 'CONNECT_AUTH' });
+  const consentCb = document.getElementById('consent-checkbox');
+  if (!consentCb) throw new Error('Élément #consent-checkbox introuvable');
+  consentCb.addEventListener('change', () => {
+    const btn = document.getElementById('btn-connect');
+    if (btn) btn.disabled = !consentCb.checked;
   });
 
-  // Import PDF / MD
+  safeBindClick('btn-connect', () => {
+    if (!consentCb.checked) return;
+    triggerConnectFlow(true);
+  });
+
+  safeBindClick('btn-disconnect', async () => {
+    stopKeepAlive();
+    _isCapturing = false;
+    _canDownloadLastCapture = false;
+    _currentNotebookId = null;
+    _notebooks = [];
+    try {
+      await browser.runtime.sendMessage({ action: 'DISCONNECT_AUTH' });
+    } catch (_e) {
+      // Ignorer
+    }
+    syncConsentControls(false);
+    const accSection = document.getElementById('account-section');
+    if (accSection) accSection.classList.add('hidden');
+    showState('authRequired');
+  });
+
   safeBindClick('btn-pdf', () => startEmailCapture('pdf'));
   safeBindClick('btn-md', () => startEmailCapture('md'));
-
-
-
-  // Import PJ sélectionnées
   safeBindClick('btn-import-attachments', startAttachmentCapture);
 
-  // Créer un carnet — UI inline (sprint 2 v1.0.5).
-  // ⚠️ window.prompt est INTERDIT : non supporté dans les popups TB
-  // (fenêtre détachée + échec silencieux — AGENTS.md §10).
   safeBindClick('btn-create-notebook', openCreateNotebookRow);
   safeBindClick('btn-create-confirm', submitCreateNotebook);
-  safeBindClick('btn-create-cancel', closeCreateNotebookRow);
+  safeBindClick('btn-create-cancel', () => closeCreateNotebookRow(true));
 
   const createInput = document.getElementById('create-notebook-name');
   if (!createInput) throw new Error('Élément #create-notebook-name introuvable');
   createInput.addEventListener('input', updateCreateConfirmState);
   createInput.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') { e.preventDefault(); submitCreateNotebook(); }
-    if (e.key === 'Escape') { e.preventDefault(); closeCreateNotebookRow(); }
+    if (e.key === 'Escape') { e.preventDefault(); closeCreateNotebookRow(true); }
   });
 
-  // Fast Research sur la liste de carnets (debounce 300ms)
   const searchInput = document.getElementById('notebook-search');
   if (!searchInput) throw new Error('Élément #notebook-search introuvable');
   let _searchDebounce = null;
@@ -874,52 +1125,73 @@ function bindButtons() {
     }, 300);
   });
 
-  // Sélecteur de compte
   const accountSelect = document.getElementById('account-select');
   if (!accountSelect) throw new Error('Élément #account-select introuvable');
   accountSelect.addEventListener('change', async (e) => {
     const index = parseInt(e.target.value, 10);
-    await browser.runtime.sendMessage({ action: 'SET_ACCOUNT', index });
-    await loadNotebooks();
+    try {
+      const resp = await browser.runtime.sendMessage({ action: 'SET_ACCOUNT', index });
+      if (!resp || resp.error) {
+        showInlineReadyError(t('errorUnknown'));
+        return;
+      }
+      _currentNotebookId = null;
+      _searchTerm = '';
+      searchInput.value = '';
+      closeCreateNotebookRow(false);
+      showInlineReadyError(null);
+      await loadNotebooks();
+    } catch (err) {
+      const { code, detail } = classifyError(err);
+      showError(code, detail);
+    }
   });
 
-  // Gestion clavier de la liste de carnets
   const notebookList = document.getElementById('notebook-list');
   if (notebookList) {
     notebookList.addEventListener('keydown', handleNotebookListKeyDown);
   }
 
-  // Télécharger — le nom de fichier est géré côté background depuis le sujet
-  // brut mémorisé à la capture (revue 2026-06-10, bug 4 : plus de titre
-  // tronqué avec ellipse envoyé depuis la popup).
   safeBindClick('btn-download', () => {
     const btn = document.getElementById('btn-download');
-    if (btn) {
-      browser.runtime.sendMessage({
-        action  : 'DOWNLOAD_CAPTURE',
-        fileType: btn.dataset.fileType || _currentFormat,
-      });
-    }
+    if (!btn) return;
+    browser.runtime.sendMessage({
+      action: 'DOWNLOAD_CAPTURE',
+      fileType: btn.dataset.fileType || _currentFormat,
+    }).catch((err) => {
+      console.error('[NTC-UI] Échec du téléchargement :', err.message);
+    });
   });
 
-  // [A11Y-B5] Ouvrir dans NotebookLM — <button> avec URL en dataset (pas de href)
   safeBindClick('btn-open-notebook', () => {
     const btn = document.getElementById('btn-open-notebook');
     if (btn && btn.dataset.notebookUrl) {
-      browser.tabs.create({ url: btn.dataset.notebookUrl });
+      browser.tabs.create({ url: btn.dataset.notebookUrl }).catch(() => {});
     }
   });
 
-  // [ROB-m2] Remettre le verrou à false pour éviter un blocage de l'UI après navigation pendant capture
-  safeBindClick('btn-new-import', () => { _isCapturing = false; loadEmailMeta(); });
+  safeBindClick('btn-new-import', () => {
+    _isCapturing = false;
+    purgeBackgroundCaptureBuffer();
+    loadEmailMeta().catch((err) => showError('UNKNOWN', err.message));
+  });
 
-  // [ROB-m2] Retour depuis erreur — réinitialiser le verrou
-  safeBindClick('btn-back', () => { _isCapturing = false; loadEmailMeta(); });
+  safeBindClick('btn-back', () => {
+    _isCapturing = false;
+    loadEmailMeta().catch((err) => showError('UNKNOWN', err.message));
+  });
 
-  // Reconnexion après session expirée
   safeBindClick('btn-reconnect', () => {
-    showState('loading');
-    browser.runtime.sendMessage({ action: 'CONNECT_AUTH' });
+    // Le consentement explicite a déjà été accordé précédemment
+    triggerConnectFlow(false);
+  });
+
+  // Libérer les buffers mémoire de l'Event Page MV3 à la fermeture de la popup
+  window.addEventListener('pagehide', () => {
+    stopKeepAlive();
+    if (_canDownloadLastCapture && !_isCapturing) {
+      purgeBackgroundCaptureBuffer();
+    }
   });
 }
 
@@ -933,7 +1205,6 @@ async function initPopup() {
     bindButtons();
   } catch (err) {
     console.error('[NTC] Erreur init UI :', err.message, err.stack);
-    // Écran d'erreur factorisé dans pre_loader.js (revue 2026-06-10)
     if (typeof window.__ntcRenderErrorScreen === 'function') {
       window.__ntcRenderErrorScreen('CRASH INIT', `Error: ${err.message}\nStack: ${err.stack}`, false);
     }
@@ -942,60 +1213,31 @@ async function initPopup() {
 
   showState('loading');
 
-  // Vérifier l'état d'authentification
   let authStatus;
   try {
     authStatus = await browser.runtime.sendMessage({ action: 'GET_AUTH_STATUS' });
   } catch (err) {
     console.error('[NTC] GET_AUTH_STATUS failed :', err.message);
+    syncConsentControls(false);
     showState('authRequired');
     return;
   }
+
+  syncConsentControls(authStatus && authStatus.dataConsent);
 
   if (!authStatus || !authStatus.authReady) {
     showState('authRequired');
     return;
   }
 
-  // Auth OK → charger les métadonnées email
   try {
     await loadEmailMeta();
   } catch (err) {
     console.error('[NTC] Erreur lors du chargement des métadonnées :', err.message, err.stack);
     showError('UNKNOWN', err.message);
-    return;
-  }
-
-  // Charger la liste des comptes (section conditionnelle)
-  try {
-    const accountsResp = await browser.runtime.sendMessage({ action: 'GET_ACCOUNTS' });
-    if (accountsResp && accountsResp.accounts && accountsResp.accounts.length > 1) {
-      const sel = document.getElementById('account-select');
-      if (sel) {
-        while (sel.firstChild) sel.removeChild(sel.firstChild);
-        accountsResp.accounts.forEach(acc => {
-          const opt = document.createElement('option');
-          opt.value       = String(acc.index);
-          opt.textContent = acc.email;
-          sel.appendChild(opt);
-        });
-        // Charger le compte actif stocké et le sélectionner dans l'UI
-        const stored = await browser.storage.local.get(STORAGE_KEYS.ACTIVE_AUTHUSER);
-        const activeIndex = stored[STORAGE_KEYS.ACTIVE_AUTHUSER] !== undefined ? stored[STORAGE_KEYS.ACTIVE_AUTHUSER] : 0;
-        sel.value = String(activeIndex);
-
-        const section = document.getElementById('account-section');
-        if (section) section.classList.remove('hidden');
-      }
-    }
-  } catch (_e) {
-    // Non bloquant
   }
 }
 
-// Les scripts étant chargés en fin de <body>, le DOM est déjà parsé.
-// Dans le contexte de popup de Thunderbird, DOMContentLoaded peut ne pas se déclencher.
-// Appel direct.
-initPopup().catch(err => {
+initPopup().catch((err) => {
   console.error('[NTC] Fatal in initPopup:', err);
 });

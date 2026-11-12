@@ -1,27 +1,31 @@
 {
   "extensionName": {
-    "message": "Magic Clipper for NotebookLM",
+    "message": "Magic Clipper for Gemini Notebook",
     "description": "Nom de l'extension affiché dans le gestionnaire de modules complémentaires"
   },
   "extensionDescription": {
-    "message": "Importez vos e-mails et pièces jointes directement dans Google NotebookLM en un clic.",
+    "message": "Importez vos e-mails et pièces jointes directement dans Google Gemini Notebook en un clic.",
     "description": "Description de l'extension affichée dans le gestionnaire de modules complémentaires"
   },
+  "actionLabel": {
+    "message": "Notebook",
+    "description": "Libellé court du bouton dans l'en-tête du courriel"
+  },
   "actionTitle": {
-    "message": "Clip vers NotebookLM",
+    "message": "Clipper vers Gemini Notebook",
     "description": "Infobulle du bouton message_display_action"
   },
   "stateAuthRequired": {
-    "message": "Connexion à NotebookLM requise",
+    "message": "Connexion à Gemini Notebook requise",
     "description": "Titre affiché quand l'authentification est nécessaire"
   },
   "stateAuthRequiredBody": {
-    "message": "Connectez votre compte Google pour commencer à importer vos emails dans NotebookLM.",
+    "message": "Connectez votre compte Google pour commencer à importer vos emails dans Gemini Notebook.",
     "description": "Texte explicatif de l'état connexion requise"
   },
   "btnConnect": {
-    "message": "Se connecter à NotebookLM",
-    "description": "Bouton pour ouvrir l'onglet d'authentification NotebookLM"
+    "message": "Se connecter à Gemini Notebook",
+    "description": "Bouton pour ouvrir l'onglet d'authentification Gemini Notebook"
   },
   "stateLoading": {
     "message": "Chargement…",
@@ -103,7 +107,7 @@
   },
   "statusUploading": {
     "message": "Envoi en cours…",
-    "description": "Affiché pendant l'upload vers NotebookLM"
+    "description": "Affiché pendant l'upload vers Gemini Notebook"
   },
   "statusBatchProgress": {
     "message": "Import de la pièce jointe $CURRENT$ sur $TOTAL$…",
@@ -140,11 +144,11 @@
     "description": "Bouton pour démarrer un nouvel import après un succès"
   },
   "errorApiChanged": {
-    "message": "L'API NotebookLM a été modifiée. Une mise à jour est requise.",
+    "message": "L'API Gemini Notebook a été modifiée. Une mise à jour est requise.",
     "description": "Erreur API_CHANGED"
   },
   "errorAuthExpired": {
-    "message": "Session expirée. Veuillez vous reconnecter à NotebookLM.",
+    "message": "Session expirée. Veuillez vous reconnecter à Gemini Notebook.",
     "description": "Erreur AUTH_EXPIRED — affiché sur 401/403"
   },
   "errorUploadSessionMissing": {
@@ -326,5 +330,29 @@
   "labelProgressbar": {
     "message": "Progression de l'import des pièces jointes",
     "description": "Accessible label for the batch progress bar (role=progressbar)"
+  },
+  "consentCheckboxLabel": {
+    "message": "J'autorise l'envoi du contenu et des pièces jointes des courriels sélectionnés vers mon compte Google Gemini Notebook (notebook.google.com).",
+    "description": "Case de consentement explicite opt-in requise par la politique ATN data-exfiltration"
+  },
+  "consentPrivacyHint": {
+    "message": "Transfert direct en HTTPS de Thunderbird vers Google — aucun serveur tiers ni télémétrie.",
+    "description": "Mention de confidentialité sous la case de consentement explicite"
+  },
+  "btnDisconnect": {
+    "message": "Déconnecter",
+    "description": "Bouton permettant de révoquer la session locale et le consentement"
+  },
+  "errorEmptyAttachment": {
+    "message": "Fichier vide (0 octet)",
+    "description": "Erreur affichée lorsqu'une pièce jointe est vide"
+  },
+  "errorWordLimitExceeded": {
+    "message": "Ce courriel dépasse la limite de 500 000 mots de Gemini Notebook.",
+    "description": "Code d'erreur WORD_LIMIT_EXCEEDED"
+  },
+  "warningPdfNonLatin": {
+    "message": "Certains caractères non latins ont été remplacés dans le PDF. Privilégiez l'export Markdown pour une fidélité intégrale.",
+    "description": "Avertissement non bloquant lorsque la police Helvetica de jsPDF remplace des glyphes non latins"
   }
 }

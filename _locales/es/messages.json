@@ -1,27 +1,31 @@
 {
   "extensionName": {
-    "message": "Magic Clipper for NotebookLM",
+    "message": "Magic Clipper for Gemini Notebook",
     "description": "Extension name displayed in Thunderbird Add-on Manager"
   },
   "extensionDescription": {
-    "message": "Importa correos electrónicos y archivos adjuntos directamente a Google NotebookLM con un solo clic.",
+    "message": "Importa correos electrónicos y archivos adjuntos directamente a Google Gemini Notebook con un solo clic.",
     "description": "Extension description displayed in Thunderbird Add-on Manager"
   },
+  "actionLabel": {
+    "message": "Notebook",
+    "description": "Short toolbar button label in message header"
+  },
   "actionTitle": {
-    "message": "Importar a NotebookLM",
+    "message": "Importar a Gemini Notebook",
     "description": "Tooltip on the message_display_action button"
   },
   "stateAuthRequired": {
-    "message": "Iniciar sesión en NotebookLM",
+    "message": "Iniciar sesión en Gemini Notebook",
     "description": "Heading shown when authentication is needed"
   },
   "stateAuthRequiredBody": {
-    "message": "Conecta tu cuenta de Google para comenzar a importar correos electrónicos a NotebookLM.",
+    "message": "Conecta tu cuenta de Google para comenzar a importar correos electrónicos a Gemini Notebook.",
     "description": "Explanation text in the auth-required state"
   },
   "btnConnect": {
-    "message": "Conectar a NotebookLM",
-    "description": "Button to open the NotebookLM auth tab"
+    "message": "Conectar a Gemini Notebook",
+    "description": "Button to open the Gemini Notebook auth tab"
   },
   "stateLoading": {
     "message": "Cargando…",
@@ -103,7 +107,7 @@
   },
   "statusUploading": {
     "message": "Subiendo…",
-    "description": "Shown while the file is being uploaded to NotebookLM"
+    "description": "Shown while the file is being uploaded to Gemini Notebook"
   },
   "statusBatchProgress": {
     "message": "Importando archivo adjunto $CURRENT$ de $TOTAL$…",
@@ -140,11 +144,11 @@
     "description": "Button to start a new import after success"
   },
   "errorApiChanged": {
-    "message": "La API de NotebookLM ha sido modificada. Se requiere una actualización.",
+    "message": "La API de Gemini Notebook ha sido modificada. Se requiere una actualización.",
     "description": "Error code API_CHANGED"
   },
   "errorAuthExpired": {
-    "message": "Sesión expirada. Inicie sesión en NotebookLM nuevamente.",
+    "message": "Sesión expirada. Inicie sesión en Gemini Notebook nuevamente.",
     "description": "Error code AUTH_EXPIRED"
   },
   "errorUploadSessionMissing": {
@@ -326,5 +330,29 @@
   "labelProgressbar": {
     "message": "Progreso de importación de adjuntos",
     "description": "Accessible label for the batch progress bar (role=progressbar)"
+  },
+  "consentCheckboxLabel": {
+    "message": "Autorizo el envío del contenido y los archivos adjuntos de los correos seleccionados a mi cuenta de Google Gemini Notebook (notebook.google.com).",
+    "description": "Explicit opt-in consent checkbox required by Thunderbird ATN data-exfiltration policy"
+  },
+  "consentPrivacyHint": {
+    "message": "Transferencia HTTPS directa de Thunderbird a Google — sin servidores de terceros ni telemetría.",
+    "description": "Privacy reassurance hint under the explicit consent checkbox"
+  },
+  "btnDisconnect": {
+    "message": "Desconectar",
+    "description": "Button to revoke local session and explicit data-transmission consent"
+  },
+  "errorEmptyAttachment": {
+    "message": "Archivo vacío (0 bytes)",
+    "description": "Error shown when an attachment has 0 bytes"
+  },
+  "errorWordLimitExceeded": {
+    "message": "Este correo supera el límite de 500 000 palabras de Gemini Notebook.",
+    "description": "Error code WORD_LIMIT_EXCEEDED"
+  },
+  "warningPdfNonLatin": {
+    "message": "Se reemplazaron caracteres no latinos en el PDF. Use la exportación Markdown para conservar todos los caracteres.",
+    "description": "Non-blocking warning shown when jsPDF Helvetica replaces CJK/non-Latin glyphs"
   }
 }

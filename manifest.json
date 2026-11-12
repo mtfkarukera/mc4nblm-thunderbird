@@ -1,13 +1,19 @@
 {
-  "manifest_version": 2,
+  "manifest_version": 3,
   "name": "__MSG_extensionName__",
-  "version": "1.5.1",
+  "version": "1.6.0",
+  "author": "MTF Karukera",
   "default_locale": "en",
   "description": "__MSG_extensionDescription__",
   "browser_specific_settings": {
     "gecko": {
       "id": "notebooklm-clipper-tb@mtfkarukera.dev",
-      "strict_min_version": "115.0"
+      "strict_min_version": "128.0",
+      "data_collection_permissions": {
+        "required": [
+          "personalCommunications"
+        ]
+      }
     }
   },
   "background": {
@@ -20,8 +26,11 @@
   },
   "message_display_action": {
     "default_popup": "src/popup/popup.html",
+    "default_label": "__MSG_actionLabel__",
     "default_title": "__MSG_actionTitle__",
     "default_icon": {
+      "16": "icons/icon-16.png",
+      "32": "icons/icon-32.png",
       "48": "icons/icon.png",
       "128": "icons/icon-128.png"
     }
@@ -32,11 +41,19 @@
     "cookies",
     "downloads",
     "scripting",
-    "sensitiveDataUpload",
-    "*://*.google.com/*"
+    "alarms",
+    "sensitiveDataUpload"
   ],
-  "content_security_policy": "script-src 'self'; object-src 'none';",
+  "host_permissions": [
+    "https://*.google.com/*",
+    "https://*.googleapis.com/*"
+  ],
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'none';"
+  },
   "icons": {
+    "16": "icons/icon-16.png",
+    "32": "icons/icon-32.png",
     "48": "icons/icon.png",
     "128": "icons/icon-128.png"
   }

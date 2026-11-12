@@ -1,334 +1,511 @@
-// auth.js — Authentification Google par cookies Gecko (Thunderbird MV2)
-// NotebookLM Clipper for Thunderbird
+// auth.js — Authentification Google par cookies Gecko (Thunderbird 128+ ESR — MV3)
+// Magic Clipper for Gemini Notebook
+// Auteur : MTF Karukera
 //
 // Référence : API-REFERENCE.md §7 + AGENTS.md §5.1
-// ⚠️ Ne jamais stocker les valeurs de cookies dans browser.storage.local.
-// ⚠️ Toujours les relire depuis le cookie store Gecko via browser.cookies.getAll().
+// Ne jamais stocker les valeurs de cookies ni les jetons CSRF dans browser.storage.
+// Toujours relire les cookies depuis le magasin Gecko via browser.cookies.getAll().
 
-(function() {
+(function () {
   'use strict';
 
-const NBLM_URL       = 'https://notebook.google.com/';
-const ROTATE_URL     = 'https://accounts.google.com/RotateCookies';
-const GOOGLE_DOMAINS = ['google.com', 'notebook.google.com', 'notebooklm.google.com', 'accounts.google.com'];
+  const NBLM_URL = 'https://notebook.google.com/';
+  const NBLM_LEGACY_URL = 'https://notebooklm.google.com/';
+  const ACCOUNTS_URL = 'https://accounts.google.com/';
+  const ROTATE_URL = 'https://accounts.google.com/RotateCookies';
 
-// Tier 1 : obligatoires — bloquants si absents
-const TIER1_COOKIES  = ['SID', '__Secure-1PSIDTS'];
-// Tier 2 : probabilistes — warnings si absents, non bloquants
-const TIER2_COOKIES  = ['OSID', 'APISID', 'SAPISID'];
+  /** Nom de l'alarme périodique MV3 remplaçant setInterval (Event Page non-persistante) */
+  const ROTATE_ALARM_NAME = 'ntc-rotate-cookies';
+  /** Période d'alarme en minutes (9 min = 540s, cible ~550s) */
+  const ROTATE_PERIOD_MINUTES = 9;
+  /** Intervalle minimal entre deux rotations (60s) */
+  const ROTATION_MIN_GAP_MS = 60000;
+  /** Seuil d'échecs consécutifs avant purge d'état de rotation */
+  const MAX_ROTATE_FAILURES = 3;
 
-// Throttle RotateCookies : min 60s entre deux appels
-let _lastRotateTs    = 0;
-let _rotationTimer   = null;
-let _authTabId       = null;   // Tab WebContent ouvert pour le setup
+  // Tier 1 : obligatoires — bloquants si absents
+  const TIER1_COOKIES = ['SID', '__Secure-1PSIDTS'];
+  // Tier 2 : probabilistes — journalisés en debug si absents, non bloquants
+  const TIER2_COOKIES = ['OSID', 'APISID', 'SAPISID'];
 
-const ROTATION_INTERVAL_MS = 550000;
-const ROTATION_MIN_GAP_MS  =  60000;
+  // Verrous en vol (protègent contre les appels concurrents au sein d'un même réveil)
+  let _isRotating = false;
+  let _openingAuthTab = false;
+  let _verifyingAuthTab = false;
 
-// P1.9 — Compteur d'échecs consécutifs de RotateCookies
-let _rotateFailCount = 0;
+  // Cache mémoire synchronisé avec browser.storage.session
+  let _authTabId = null;
+  let _lastRotateTs = 0;
+  let _rotateFailCount = 0;
 
-// ─────────────────────────────────────────────
-// 1. COLLECTE ET VALIDATION DES COOKIES
-// ─────────────────────────────────────────────
+  // Callbacks enregistrés au top-level par background.js
+  let _onAuthSuccess = null;
+  let _onAuthClosed = null;
 
-/**
- * Collecte tous les cookies Google depuis le store Gecko de Thunderbird.
- * Itère sur les domaines GOOGLE_DOMAINS — la dernière valeur pour un nom donné gagne
- * (domaine le plus spécifique en dernier dans la liste).
- *
- * @returns {Promise<Object>} - Map { cookieName: cookieValue }
- */
-async function collectGoogleCookies() {
-  const cookieMap = {};
-  const allowed = new Set([...TIER1_COOKIES, ...TIER2_COOKIES]);
-  for (const domain of GOOGLE_DOMAINS) {
-    const cookies = await browser.cookies.getAll({ domain });
-    for (const c of cookies) {
-      if (allowed.has(c.name)) {
-        cookieMap[c.name] = c.value;
+  // ─────────────────────────────────────────────
+  // HELPERS SESSION STORAGE (MV3 EVENT PAGE)
+  // ─────────────────────────────────────────────
+
+  async function getStoredAuthTabId() {
+    if (_authTabId !== null) return _authTabId;
+    try {
+      const data = await browser.storage.session.get(NtcUtils.SESSION_KEYS.AUTH_TAB_ID);
+      const id = data[NtcUtils.SESSION_KEYS.AUTH_TAB_ID];
+      if (typeof id === 'number') {
+        _authTabId = id;
+        return id;
+      }
+    } catch (_e) {
+      // Fallback mémoire uniquement
+    }
+    return null;
+  }
+
+  async function setStoredAuthTabId(tabId) {
+    _authTabId = tabId;
+    try {
+      if (tabId === null) {
+        await browser.storage.session.remove(NtcUtils.SESSION_KEYS.AUTH_TAB_ID);
+      } else {
+        await browser.storage.session.set({ [NtcUtils.SESSION_KEYS.AUTH_TAB_ID]: tabId });
+      }
+    } catch (_e) {
+      // Non bloquant
+    }
+  }
+
+  async function loadRotateMeta() {
+    if (_lastRotateTs > 0 || _rotateFailCount > 0) {
+      return { lastRotateTs: _lastRotateTs, rotateFailCount: _rotateFailCount };
+    }
+    try {
+      const data = await browser.storage.session.get(NtcUtils.SESSION_KEYS.ROTATE_META);
+      const meta = data[NtcUtils.SESSION_KEYS.ROTATE_META];
+      if (meta && typeof meta === 'object') {
+        _lastRotateTs = Number(meta.lastRotateTs) || 0;
+        _rotateFailCount = Number(meta.rotateFailCount) || 0;
+      }
+    } catch (_e) {
+      // Fallback mémoire
+    }
+    return { lastRotateTs: _lastRotateTs, rotateFailCount: _rotateFailCount };
+  }
+
+  async function saveRotateMeta(lastRotateTs, rotateFailCount) {
+    _lastRotateTs = lastRotateTs;
+    _rotateFailCount = rotateFailCount;
+    try {
+      await browser.storage.session.set({
+        [NtcUtils.SESSION_KEYS.ROTATE_META]: { lastRotateTs, rotateFailCount },
+      });
+    } catch (_e) {
+      // Non bloquant
+    }
+  }
+
+  // ─────────────────────────────────────────────
+  // 1. COLLECTE ET VALIDATION DES COOKIES
+  // ─────────────────────────────────────────────
+
+  /**
+   * Collecte les cookies d'authentification Gemini Notebook depuis le magasin Gecko.
+   * Interroge en priorité https://notebook.google.com/ puis replie sur
+   * https://notebooklm.google.com/ et https://accounts.google.com/ sans jamais
+   * écraser un cookie déjà résolu sur l'hôte principal.
+   *
+   * @returns {Promise<Object>} - Map { cookieName: cookieValue }
+   */
+  async function collectGoogleCookies() {
+    const cookieMap = {};
+    const allowed = new Set([...TIER1_COOKIES, ...TIER2_COOKIES]);
+    const candidateUrls = [NBLM_URL, NBLM_LEGACY_URL, ACCOUNTS_URL];
+
+    for (const url of candidateUrls) {
+      const cookies = await browser.cookies.getAll({ url });
+      for (const c of cookies) {
+        if (allowed.has(c.name) && !cookieMap[c.name] && c.value) {
+          cookieMap[c.name] = c.value;
+        }
+      }
+      // Dès que les cookies Tier 1 et OSID sont réunis sur l'hôte principal, inutile d'aller plus loin
+      if (cookieMap.SID && cookieMap['__Secure-1PSIDTS'] && cookieMap.OSID) {
+        break;
       }
     }
-  }
-  return cookieMap;
-}
-
-/**
- * Valide la présence des cookies Tier 1 (bloquant) et Tier 2 (probabiliste).
- *
- * Sprint 2 (v1.0.5) : retourne { valid } uniquement — `cookieString` et
- * `buildCookieString()` supprimés (plus aucun consommateur depuis le retrait
- * du header Cookie manuel en v1.0.4).
- *
- * @param  {Object}  cookieMap - Map produite par collectGoogleCookies().
- * @returns {{ valid: boolean }}
- */
-function validateCookies(cookieMap) {
-  const missingTier1 = TIER1_COOKIES.filter(name => !cookieMap[name]);
-
-  if (missingTier1.length > 0) {
-    NtcUtils.log('Cookies Tier 1 manquants :', missingTier1);
-    return { valid: false };
+    return cookieMap;
   }
 
-  const hasTier2 = cookieMap['OSID'] || (cookieMap['APISID'] && cookieMap['SAPISID']);
+  /**
+   * Valide la présence des cookies Tier 1 (bloquant) et Tier 2 (probabiliste).
+   *
+   * @param  {Object} cookieMap - Map produite par collectGoogleCookies().
+   * @returns {{ valid: boolean }}
+   */
+  function validateCookies(cookieMap) {
+    const missingTier1 = TIER1_COOKIES.filter(name => !cookieMap[name]);
 
-  if (!hasTier2) {
-    NtcUtils.log('Aucun cookie Tier 2 (OSID ou APISID+SAPISID). Session peut être instable.');
-  }
-
-  return { valid: true };
-}
-
-// ─────────────────────────────────────────────
-// 2. TOKENS CSRF
-// ─────────────────────────────────────────────
-
-/**
- * Fetche la page NotebookLM et extrait SNlM0e (token CSRF).
- * ⚠️ Doit être appelée AVANT chaque capture — ne jamais réutiliser un token mis en cache.
- *
- * Sprint 2 (v1.0.5) : FdrFJe (session ID) n'est plus extrait — jamais consommé
- * par aucun payload RPC. Regex documentée dans API-REFERENCE.md §CSRF si besoin futur.
- * La clé storage AUTH_READY n'est plus écrite (jamais lue — GET_AUTH_STATUS
- * recalcule depuis les cookies).
- *
- * @param  {number} authuserIndex   - Index authuser actif (0..4).
- * @returns {Promise<{ csrfToken: string }>}
- * @throws {Error} - AUTH_EXPIRED (HTTP 401/403 ou SNlM0e introuvable), ou erreur réseau.
- */
-async function fetchCSRFTokens(authuserIndex) {
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 15000);
-  let response;
-  try {
-    response = await fetch(`${NBLM_URL}?authuser=${authuserIndex}`, {
-      method: 'GET',
-      credentials: 'include',
-      signal: controller.signal,
-    });
-    clearTimeout(timeoutId);
-  } catch (err) {
-    clearTimeout(timeoutId);
-    if (err.name === 'AbortError') {
-      throw NtcUtils.ntcError('TIMEOUT', 'TIMEOUT');
+    if (missingTier1.length > 0) {
+      NtcUtils.log('Cookies Tier 1 manquants :', missingTier1.length);
+      return { valid: false };
     }
-    throw err;
+
+    const hasTier2 = cookieMap.OSID || (cookieMap.APISID && cookieMap.SAPISID);
+    if (!hasTier2) {
+      NtcUtils.log('Aucun cookie Tier 2 (OSID ou APISID+SAPISID). Session potentiellement instable.');
+    }
+
+    return { valid: true };
   }
 
-  if (!response.ok) {
-    if (response.status === 401 || response.status === 403) {
+  // ─────────────────────────────────────────────
+  // 2. TOKENS CSRF (WIZ_global_data)
+  // ─────────────────────────────────────────────
+
+  /**
+   * Récupère la page d'accueil Gemini Notebook et extrait le jeton CSRF SNlM0e.
+   * Doit être appelée AVANT chaque capture — ne jamais mettre SNlM0e en cache durable.
+   *
+   * @param  {number} authuserIndex - Index authuser actif (0..4).
+   * @returns {Promise<{ csrfToken: string }>}
+   * @throws {Error} - AUTH_EXPIRED (HTTP 401/403, redirection login ou SNlM0e absent) ou TIMEOUT.
+   */
+  async function fetchCSRFTokens(authuserIndex) {
+    const safeIdx = NtcUtils.sanitizeAuthuserIndex(authuserIndex);
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15000);
+    let html = '';
+
+    try {
+      const response = await fetch(`${NBLM_URL}?authuser=${safeIdx}`, {
+        method: 'GET',
+        credentials: 'include',
+        signal: controller.signal,
+      });
+
+      if (!response.ok) {
+        if (response.status === 401 || response.status === 403) {
+          throw NtcUtils.ntcError('AUTH_EXPIRED', 'AUTH_EXPIRED');
+        }
+        throw new Error(`HTTP ${response.status}`);
+      }
+
+      // Si Google a redirigé en HTTP 200 vers ServiceLogin / accounts.google.com
+      if (response.url && response.url.includes('accounts.google.com')) {
+        throw NtcUtils.ntcError('AUTH_EXPIRED', 'AUTH_EXPIRED');
+      }
+
+      html = await response.text();
+    } catch (err) {
+      if (err.name === 'AbortError') {
+        throw NtcUtils.ntcError('TIMEOUT', 'TIMEOUT');
+      }
+      throw err;
+    } finally {
+      clearTimeout(timeoutId);
+    }
+
+    const snlMatch = html.match(/"SNlM0e":"([^"]+)"/);
+    if (!snlMatch) {
       throw NtcUtils.ntcError('AUTH_EXPIRED', 'AUTH_EXPIRED');
     }
-    throw new Error(`HTTP ${response.status}`);
+
+    return { csrfToken: snlMatch[1] };
   }
 
-  const html = await response.text();
+  // ─────────────────────────────────────────────
+  // 3. ROTATION DES COOKIES (Alarme MV3)
+  // ─────────────────────────────────────────────
 
-  const snlMatch = html.match(/"SNlM0e":"([^"]+)"/);
-
-  // Pas de token CSRF dans la page (page de consentement, compte non connecté
-  // à NotebookLM, etc.) → session inutilisable : AUTH_EXPIRED explicite.
-  // Ne JAMAIS retourner csrfToken: null silencieusement (revue 2026-06-10).
-  if (!snlMatch) {
-    throw NtcUtils.ntcError('AUTH_EXPIRED', 'AUTH_EXPIRED');
-  }
-
-  return { csrfToken: snlMatch[1] };
-}
-
-// ─────────────────────────────────────────────
-// 3. ROTATION DES COOKIES (RotateCookies)
-// ─────────────────────────────────────────────
-
-/**
- * Émet un POST RotateCookies si le délai minimum est respecté.
- * credentials: 'include' → Gecko attache les cookies et met à jour
- * __Secure-1PSIDTS automatiquement. Ne JAMAIS poser de header `Cookie`
- * manuel : header interdit, silencieusement ignoré par fetch (revue 2026-06-10).
- */
-async function rotateCookiesIfNeeded() {
-  const now = Date.now();
-  if (now - _lastRotateTs < ROTATION_MIN_GAP_MS) return;
-
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 10000);
-  try {
-    await fetch(ROTATE_URL, {
-      method: 'POST',
-      credentials: 'include',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded'
-      },
-      body: 'continue=https://notebook.google.com/',
-      signal: controller.signal,
-    });
-    clearTimeout(timeoutId);
-    _lastRotateTs = Date.now();
-    _rotateFailCount = 0;
-  } catch (e) {
-    clearTimeout(timeoutId);
-    _rotateFailCount++;
-    if (e.name === 'AbortError') {
-      console.error('[NTC] RotateCookies timeout (10s)');
-    } else {
-      console.error('[NTC] RotateCookies échoué :', e.message);
-    }
-    if (_rotateFailCount >= 3) {
-      console.error('[NTC] RotateCookies failed ' + _rotateFailCount + ' consecutive times — session may expire soon');
-    }
-  }
-}
-
-/**
- * Démarre le planning de rotation des cookies (toutes les 550s).
- * À appeler après un setup d'auth réussi.
- */
-function startCookieRotationSchedule() {
-  if (_rotationTimer) clearInterval(_rotationTimer);
-  _rotationTimer = setInterval(rotateCookiesIfNeeded, ROTATION_INTERVAL_MS);
-}
-
-/**
- * Arrête le planning de rotation des cookies.
- */
-function stopCookieRotationSchedule() {
-  if (_rotationTimer) {
-    clearInterval(_rotationTimer);
-    _rotationTimer = null;
-  }
-}
-
-// ─────────────────────────────────────────────
-// 4. SETUP AUTH — WebContent Tab
-// ─────────────────────────────────────────────
-
-/**
- * Ouvre un onglet WebContent Thunderbird vers NotebookLM pour le setup initial.
- * Écoute tabs.onUpdated pour détecter que l'utilisateur est connecté.
- * Ferme l'onglet automatiquement et notifie le background via le callback onSuccess.
- *
- * @param {Function} onSuccess - Appelée sans arguments quand la connexion est détectée.
- */
-async function openAuthWebContentTab(onSuccess) {
-  // Éviter d'ouvrir plusieurs onglets d'auth
-  if (_authTabId !== null) {
+  /**
+   * Planifie l'alarme périodique MV3 de rotation des cookies sans réinitialiser
+   * une alarme déjà active lors des réveils successifs de l'Event Page.
+   */
+  async function startCookieRotationSchedule() {
     try {
-      await browser.tabs.get(_authTabId);
-      // Si on arrive ici, l'onglet existe encore — ne pas en rouvrir
-      return;
+      const existing = await browser.alarms.get(ROTATE_ALARM_NAME);
+      if (!existing) {
+        await browser.alarms.create(ROTATE_ALARM_NAME, {
+          delayInMinutes: ROTATE_PERIOD_MINUTES,
+          periodInMinutes: ROTATE_PERIOD_MINUTES,
+        });
+      }
+    } catch (err) {
+      NtcUtils.log('Impossible de planifier l\'alarme RotateCookies :', err.message);
+    }
+  }
+
+  /**
+   * Arrête l'alarme périodique MV3 de rotation des cookies.
+   */
+  async function stopCookieRotationSchedule() {
+    try {
+      await browser.alarms.clear(ROTATE_ALARM_NAME);
     } catch (_e) {
-      _authTabId = null;
+      // Ignorer
     }
   }
 
-  const tab = await browser.tabs.create({ url: NBLM_URL });
-  _authTabId = tab.id;
-
-  // Nettoyage commun : retire les DEUX listeners + reset _authTabId.
-  // Indispensable pour éviter la fuite de listener si l'utilisateur ferme
-  // l'onglet sans se connecter (revue 2026-06-10).
-  function cleanup() {
-    browser.tabs.onUpdated.removeListener(onTabUpdated);
-    browser.tabs.onRemoved.removeListener(onTabRemoved);
-    _authTabId = null;
-  }
-
-  async function onTabUpdated(tabId, changeInfo) {
-    if (tabId !== _authTabId) return;
-    if (changeInfo.status !== 'complete') return;
-
-    // Vérifier si les cookies Tier 1 sont maintenant présents
-    const cookieMap = await collectGoogleCookies();
-    const { valid } = validateCookies(cookieMap);
-
-    if (valid) {
-      const tabToClose = _authTabId;
-      cleanup();
-      try { await browser.tabs.remove(tabToClose); } catch (_e) { /* déjà fermé */ }
-      onSuccess();
-    }
-  }
-
-  function onTabRemoved(tabId) {
-    if (tabId !== _authTabId) return;
-    // Onglet d'auth fermé manuellement sans connexion détectée
-    NtcUtils.log('Onglet auth fermé sans connexion — nettoyage des listeners');
-    cleanup();
-  }
-
-  browser.tabs.onUpdated.addListener(onTabUpdated);
-  browser.tabs.onRemoved.addListener(onTabRemoved);
-}
-
-// ─────────────────────────────────────────────
-// 5. DÉTECTION MULTI-COMPTES
-// ─────────────────────────────────────────────
-
-/**
- * Itère sur authuser=0..4 pour détecter les comptes Google connectés.
- * S'arrête sur HTTP 302 vers accounts.google.com (compte inexistant).
- *
- * @returns {Promise<Array<{ index: number, email: string }>>}
- */
-async function detectGoogleAccounts() {
-  const accounts = [];
-  for (let index = 0; index < 5; index++) {
+  /**
+   * Réinitialise l'état local de session d'authentification (en cas d'expiration 401/403
+   * ou de déconnexion demandée par l'utilisateur).
+   */
+  async function clearAuthSession() {
+    await stopCookieRotationSchedule();
+    _lastRotateTs = 0;
+    _rotateFailCount = 0;
     try {
+      await browser.storage.session.remove(NtcUtils.SESSION_KEYS.ROTATE_META);
+    } catch (_e) {
+      // Non bloquant
+    }
+  }
+
+  /**
+   * Émet un POST RotateCookies si le délai minimal est respecté.
+   * Vérifie resp.ok pour ne jamais masquer une révocation 401/403.
+   */
+  async function rotateCookiesIfNeeded() {
+    if (_isRotating) return;
+    _isRotating = true;
+
+    try {
+      const meta = await loadRotateMeta();
+      const now = Date.now();
+      if (now - meta.lastRotateTs < ROTATION_MIN_GAP_MS) return;
+
+      // Ne pas appeler RotateCookies si aucun cookie Tier 1 n'est présent
+      const cookieMap = await collectGoogleCookies();
+      if (!validateCookies(cookieMap).valid) {
+        await stopCookieRotationSchedule();
+        return;
+      }
+
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 10000);
-      let resp;
       try {
-        resp = await fetch(`${NBLM_URL}?authuser=${index}`, {
+        const resp = await fetch(ROTATE_URL, {
+          method: 'POST',
+          credentials: 'include',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+          },
+          body: 'continue=https://notebook.google.com/',
+          signal: controller.signal,
+        });
+        await resp.text().catch(() => '');
+
+        if (!resp.ok) {
+          throw new Error(`HTTP ${resp.status}`);
+        }
+
+        await saveRotateMeta(Date.now(), 0);
+      } catch (err) {
+        const failCount = meta.rotateFailCount + 1;
+        await saveRotateMeta(meta.lastRotateTs, failCount);
+        if (err.name === 'AbortError') {
+          console.error('[NTC] RotateCookies timeout (10s)');
+        } else {
+          console.error('[NTC] RotateCookies en échec :', err.message);
+        }
+        if (failCount >= MAX_ROTATE_FAILURES) {
+          console.error('[NTC] RotateCookies en échec répété — arrêt de l\'alarme périodique');
+          await clearAuthSession();
+        }
+      } finally {
+        clearTimeout(timeoutId);
+      }
+    } finally {
+      _isRotating = false;
+    }
+  }
+
+  // ─────────────────────────────────────────────
+  // 4. SETUP AUTH — Onglet WebContent (Listeners Top-Level MV3)
+  // ─────────────────────────────────────────────
+
+  /**
+   * Enregistre les callbacks de cycle de vie de l'onglet d'authentification
+   * au chargement top-level de l'Event Page.
+   *
+   * @param {{ onSuccess?: Function, onClosed?: Function }} callbacks
+   */
+  function setAuthTabCallbacks(callbacks) {
+    if (callbacks && typeof callbacks.onSuccess === 'function') {
+      _onAuthSuccess = callbacks.onSuccess;
+    }
+    if (callbacks && typeof callbacks.onClosed === 'function') {
+      _onAuthClosed = callbacks.onClosed;
+    }
+  }
+
+  /**
+   * Listener top-level tabs.onUpdated : survit à l'endormissement de l'Event Page
+   * pendant que l'utilisateur saisit ses identifiants et sa validation 2FA.
+   */
+  async function handleAuthTabUpdated(tabId, changeInfo, tab) {
+    if (changeInfo.status !== 'complete') return;
+
+    const trackedId = await getStoredAuthTabId();
+    if (trackedId === null || tabId !== trackedId) return;
+
+    // Attendre que l'onglet ait effectivement atterri sur Gemini Notebook (et non sur accounts.google.com)
+    const currentUrl = (tab && tab.url) || changeInfo.url || '';
+    if (
+      currentUrl &&
+      !currentUrl.startsWith(NBLM_URL) &&
+      !currentUrl.startsWith(NBLM_LEGACY_URL)
+    ) {
+      return;
+    }
+
+    if (_verifyingAuthTab) return;
+    _verifyingAuthTab = true;
+
+    try {
+      const cookieMap = await collectGoogleCookies();
+      if (!validateCookies(cookieMap).valid) return;
+
+      // Vérifier qu'un jeton SNlM0e est réellement disponible (évite de fermer l'onglet
+      // prématurément si l'utilisateur doit d'abord accepter un écran d'accueil Gemini Notebook)
+      await fetchCSRFTokens(0);
+
+      // Effacer l'ID suivi AVANT browser.tabs.remove pour que handleAuthTabRemoved l'ignore
+      await setStoredAuthTabId(null);
+      await startCookieRotationSchedule();
+      try {
+        await browser.tabs.remove(tabId);
+      } catch (_e) {
+        // Onglet déjà refermé
+      }
+
+      if (typeof _onAuthSuccess === 'function') {
+        _onAuthSuccess();
+      }
+    } catch (_err) {
+      // Session pas encore finalisée dans l'onglet : laisser l'utilisateur poursuivre
+    } finally {
+      _verifyingAuthTab = false;
+    }
+  }
+
+  /**
+   * Listener top-level tabs.onRemoved : notifie la popup si l'utilisateur referme
+   * manuellement l'onglet WebContent sans avoir terminé la connexion.
+   */
+  async function handleAuthTabRemoved(tabId) {
+    const trackedId = await getStoredAuthTabId();
+    if (trackedId === null || tabId !== trackedId) return;
+
+    NtcUtils.log('Onglet auth refermé sans connexion complète');
+    await setStoredAuthTabId(null);
+    if (typeof _onAuthClosed === 'function') {
+      _onAuthClosed();
+    }
+  }
+
+  // Enregistrement synchrone au top-level requis par Manifest V3
+  browser.tabs.onUpdated.addListener(handleAuthTabUpdated);
+  browser.tabs.onRemoved.addListener(handleAuthTabRemoved);
+
+  /**
+   * Ouvre (ou remet au premier plan) l'onglet WebContent Thunderbird vers Gemini Notebook.
+   *
+   * @param {Function} [onSuccess] - Callback optionnel de succès.
+   */
+  async function openAuthWebContentTab(onSuccess) {
+    if (typeof onSuccess === 'function') {
+      _onAuthSuccess = onSuccess;
+    }
+    if (_openingAuthTab) return;
+    _openingAuthTab = true;
+
+    try {
+      const existingId = await getStoredAuthTabId();
+      if (existingId !== null) {
+        try {
+          const existingTab = await browser.tabs.get(existingId);
+          await browser.tabs.update(existingId, { active: true });
+          if (existingTab && typeof existingTab.windowId === 'number') {
+            await browser.windows.update(existingTab.windowId, { focused: true }).catch(() => {});
+          }
+          return;
+        } catch (_e) {
+          await setStoredAuthTabId(null);
+        }
+      }
+
+      const tab = await browser.tabs.create({ url: NBLM_URL });
+      await setStoredAuthTabId(tab.id);
+    } finally {
+      _openingAuthTab = false;
+    }
+  }
+
+  // ─────────────────────────────────────────────
+  // 5. DÉTECTION MULTI-COMPTES
+  // ─────────────────────────────────────────────
+
+  /**
+   * Itère sur authuser=0..4 pour détecter les comptes Google connectés.
+   * S'arrête dès qu'une redirection 302 vers accounts.google.com survient.
+   *
+   * @returns {Promise<Array<{ index: number, email: string }>>}
+   */
+  async function detectGoogleAccounts() {
+    const accounts = [];
+    for (let index = 0; index < 5; index++) {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000);
+      try {
+        const resp = await fetch(`${NBLM_URL}?authuser=${index}`, {
           method: 'GET',
           credentials: 'include',
           redirect: 'manual',
           signal: controller.signal,
         });
-        clearTimeout(timeoutId);
-      } catch (fetchErr) {
-        clearTimeout(timeoutId);
-        if (fetchErr.name === 'AbortError') break; // Timeout → stop probing
-        throw fetchErr;
-      }
 
-      if (resp.type === 'opaqueredirect' || resp.status === 302) break;
-      if (!resp.ok) break;
+        if (resp.type === 'opaqueredirect' || resp.status === 302 || !resp.ok) {
+          break;
+        }
 
-      const html = await resp.text();
-      // Tentative d'extraction via WIZ_global_data "oPEP7c"
-      const wizMatch = html.match(/"oPEP7c":"([^"@]+@[^"]+)"/);
-      let email;
-      if (wizMatch) {
-        email = wizMatch[1];
-      } else {
-        // Fallback : scan des adresses email dans le HTML
-        const emailMatches = [...new Set(html.match(/[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/g) || [])];
-        email = emailMatches.find(e => e.includes('@')) || `account-${index}`;
-      }
+        const html = await resp.text();
+        // Extraction prioritaire via WIZ_global_data "oPEP7c"
+        const wizMatch = html.match(/"oPEP7c":"([^"@]+@[^"]+)"/);
+        let email;
+        if (wizMatch) {
+          email = wizMatch[1];
+        } else {
+          const emailMatches = [...new Set(html.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g) || [])];
+          email = emailMatches.find(e => e.includes('@')) || `account-${index}`;
+        }
 
-      // Si l'email est déjà enregistré, c'est que Google redirige vers le compte par défaut (fin de liste)
-      if (accounts.some(acc => acc.email === email)) {
+        // Si Google replie sur un compte déjà listé, fin des comptes actifs
+        if (accounts.some(acc => acc.email === email)) {
+          break;
+        }
+
+        accounts.push({ index, email });
+      } catch (_err) {
         break;
+      } finally {
+        clearTimeout(timeoutId);
       }
-
-      accounts.push({ index, email });
-    } catch (_e) {
-      break;
     }
+    return accounts;
   }
-  return accounts;
-}
 
-// Exposition globale (MV2 — background scripts partagent le même scope global)
-window.NtcAuth = {
-  collectGoogleCookies,
-  validateCookies,
-  fetchCSRFTokens,
-  rotateCookiesIfNeeded,
-  startCookieRotationSchedule,
-  stopCookieRotationSchedule,
-  openAuthWebContentTab,
-  detectGoogleAccounts,
-};
+  // Exposition globale sur l'Event Page MV3
+  window.NtcAuth = {
+    ROTATE_ALARM_NAME,
+    collectGoogleCookies,
+    validateCookies,
+    fetchCSRFTokens,
+    rotateCookiesIfNeeded,
+    startCookieRotationSchedule,
+    stopCookieRotationSchedule,
+    clearAuthSession,
+    setAuthTabCallbacks,
+    openAuthWebContentTab,
+    detectGoogleAccounts,
+  };
 })();

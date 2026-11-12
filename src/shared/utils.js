@@ -1,6 +1,7 @@
 // utils.js — Fonctions utilitaires partagées
-// NotebookLM Clipper for Thunderbird — MV2
-// Pas d'ES modules (MV2) — exposé via var NtcUtils
+// Magic Clipper for Gemini Notebook (Thunderbird 128+ ESR — Manifest V3)
+// Auteur : MTF Karukera
+// Exposé via var NtcUtils (partagé par l'Event Page MV3, la popup et les scripts email)
 
 'use strict';
 
@@ -12,6 +13,9 @@ var NtcUtils = (function () {
    * (carnets __diag__). Voir AGENTS.md §4.4.
    */
   const DEBUG = false;
+
+  /** Profondeur maximale de parcours DOM pour éviter tout dépassement de pile */
+  const MAX_DOM_DEPTH = 200;
 
   /**
    * Log informatif gaté par DEBUG. Ne JAMAIS y passer de payload sensible
@@ -27,13 +31,35 @@ var NtcUtils = (function () {
   /**
    * Clés browser.storage.local — source unique partagée par background.js
    * ET popup.js. Ne jamais utiliser ces littéraux directement ailleurs.
-   * Sprint 2 (v1.0.5) : AUTH_READY supprimée — écrite mais jamais lue
-   * (GET_AUTH_STATUS recalcule l'état depuis les cookies à chaque ouverture).
    */
   const STORAGE_KEYS = {
     ACTIVE_AUTHUSER: 'ntc_active_authuser',
     LAST_NOTEBOOK: 'ntc_last_notebook_id',
+    DATA_CONSENT: 'ntc_data_consent',
   };
+
+  /**
+   * Clés browser.storage.session — métadonnées légères survivant à la mise en
+   * veille de l'Event Page MV3 (zéro cookie, zéro jeton CSRF, zéro contenu email).
+   */
+  const SESSION_KEYS = {
+    AUTH_TAB_ID: 'ntc_session_auth_tab_id',
+    ROTATE_META: 'ntc_session_rotate_meta',
+  };
+
+  /**
+   * Normalise et borne l'index de compte Google authuser dans l'intervalle [0..4].
+   *
+   * @param {*} val - Valeur brute issue du stockage ou d'un message IPC.
+   * @returns {number} Entier sûr compris entre 0 et 4.
+   */
+  function sanitizeAuthuserIndex(val) {
+    const parsed = Number.parseInt(String(val), 10);
+    if (Number.isInteger(parsed) && parsed >= 0 && parsed <= 4) {
+      return parsed;
+    }
+    return 0;
+  }
 
   /**
    * Résout une clé i18n en chaîne traduite via browser.i18n.getMessage().
@@ -95,33 +121,48 @@ var NtcUtils = (function () {
   }
 
   /**
-   * Assainit un nom de fichier en remplaçant les caractères spéciaux et non autorisés par des tirets bas.
+   * Assainit un nom de fichier en remplaçant les caractères spéciaux, de contrôle
+   * et non autorisés par des tirets bas, et supprime les points/espaces aux extrémités.
    *
    * @param  {string} name - Le nom de fichier d'origine.
-   * @returns {string} - Le nom de fichier assaini.
+   * @returns {string} - Le nom de fichier assaini (fallback 'email').
    */
   function sanitizeFilename(name) {
-    if (!name) return 'file';
-    // Remplace les caractères interdits/sensibles par _
-    let sanitized = name.replace(/[?*:|<>/\\]/g, '_');
+    if (!name || typeof name !== 'string') return 'email';
+    // Supprime les caractères de contrôle ASCII (0x00–0x1F et 0x7F)
+    let sanitized = '';
+    for (let i = 0; i < name.length; i++) {
+      const code = name.charCodeAt(i);
+      if (code >= 0x20 && code !== 0x7f) {
+        sanitized += name[i];
+      }
+    }
+    // Remplace les caractères interdits par les systèmes de fichiers (dont ") par _
+    sanitized = sanitized.replace(/[?*:|<>/\\"]/g, '_');
     // Évite les underscores multiples
     sanitized = sanitized.replace(/_+/g, '_');
+    // Retire les points et espaces initiaux/finaux dangereux sous Windows/macOS
+    sanitized = sanitized.replace(/^[.\s]+|[.\s]+$/g, '');
     // Troncature à 200 caractères (P4.4)
     if (sanitized.length > 200) {
-      sanitized = sanitized.slice(0, 200);
+      sanitized = sanitized.slice(0, 200).replace(/[.\s]+$/g, '');
     }
-    return sanitized.trim();
+    return sanitized || 'email';
   }
 
   /**
-   * Convertit un nœud DOM récursivement en Markdown.
+   * Convertit un nœud DOM récursivement en Markdown avec garde-fou de profondeur.
    *
    * @param {Node} node - Le nœud DOM.
-   * @param {number} [depth=0] - Niveau d'indentation.
+   * @param {number} [listIndent=0] - Niveau d'indentation des listes.
+   * @param {number} [domDepth=0] - Profondeur de récursion DOM.
    * @returns {string} - Le contenu Markdown.
    */
-  function nodeToMarkdown(node, depth = 0) {
+  function nodeToMarkdown(node, listIndent = 0, domDepth = 0) {
     if (!node) return '';
+    if (domDepth > MAX_DOM_DEPTH) {
+      return node.textContent || '';
+    }
     if (node.nodeType === 3) { // Node.TEXT_NODE
       return node.textContent;
     }
@@ -140,33 +181,33 @@ var NtcUtils = (function () {
       if (isLayoutTable(node)) {
         let content = '';
         for (const child of node.childNodes) {
-          content += nodeToMarkdown(child, depth);
+          content += nodeToMarkdown(child, listIndent, domDepth + 1);
         }
         return '\n' + content + '\n';
       }
-      return '\n\n' + tableToMarkdown(node) + '\n\n';
+      return '\n\n' + tableToMarkdown(node, domDepth + 1) + '\n\n';
     }
     if (tag === 'tr') {
       let content = '';
       for (const child of node.childNodes) {
-        content += nodeToMarkdown(child, depth);
+        content += nodeToMarkdown(child, listIndent, domDepth + 1);
       }
       return content.trim() ? '\n' + content + '\n' : '';
     }
     if (tag === 'td' || tag === 'th') {
       let content = '';
       for (const child of node.childNodes) {
-        content += nodeToMarkdown(child, depth);
+        content += nodeToMarkdown(child, listIndent, domDepth + 1);
       }
       return content.trim() ? ' ' + content.trim() + ' ' : '';
     }
     if (tag === 'ul' || tag === 'ol') {
-      return '\n\n' + listToMarkdown(node, tag === 'ol', depth) + '\n\n';
+      return '\n\n' + listToMarkdown(node, tag === 'ol', listIndent, domDepth + 1) + '\n\n';
     }
 
     let childrenContent = '';
     for (const child of node.childNodes) {
-      childrenContent += nodeToMarkdown(child, depth);
+      childrenContent += nodeToMarkdown(child, listIndent, domDepth + 1);
     }
 
     if (/^h[1-6]$/.test(tag)) {
@@ -194,10 +235,12 @@ var NtcUtils = (function () {
       const href = node.getAttribute('href');
       const text = childrenContent.trim();
       if (href && text) {
-        if (href.startsWith('data:')) {
-          return ` ${text} `;
+        const safeHref = href.trim();
+        // N'autoriser que les schémas web sûrs (bloque javascript:, vbscript:, data:)
+        if (/^(https?:|mailto:)/i.test(safeHref)) {
+          return ` [${text}](${safeHref}) `;
         }
-        return ` [${text}](${href}) `;
+        return ` ${text} `;
       }
       return childrenContent;
     }
@@ -213,7 +256,7 @@ var NtcUtils = (function () {
       return `\n\n\`\`\`\n${childrenContent}\n\`\`\`\n\n`;
     }
     if (tag === 'code') {
-      if (node.parentNode && node.parentNode.tagName.toLowerCase() === 'pre') {
+      if (node.parentNode && node.parentNode.tagName && node.parentNode.tagName.toLowerCase() === 'pre') {
         return childrenContent;
       }
       return `\`${childrenContent.trim()}\``;
@@ -222,10 +265,11 @@ var NtcUtils = (function () {
       const alt = node.getAttribute('alt') || 'Image';
       const src = node.getAttribute('src');
       if (src) {
-        if (src.startsWith('data:')) {
-          return ` [${alt}] `;
+        const safeSrc = src.trim();
+        if (/^https?:/i.test(safeSrc)) {
+          return ` ![${alt}](${safeSrc}) `;
         }
-        return ` ![${alt}](${src}) `;
+        return ` [${alt}] `;
       }
       return '';
     }
@@ -245,8 +289,7 @@ var NtcUtils = (function () {
     }
 
     const rows = Array.from(tableNode.querySelectorAll('tr')).filter(tr => tr.closest('table') === tableNode);
-    if (rows.length === 0) return true;
-    if (rows.length === 1) return true;
+    if (rows.length <= 1) return true;
 
     let maxCols = 0;
     rows.forEach(row => {
@@ -256,14 +299,13 @@ var NtcUtils = (function () {
       }
     });
 
-    if (maxCols <= 1) return true;
-    return false;
+    return maxCols <= 1;
   }
 
   /**
    * Convertit un élément table en tableau Markdown.
    */
-  function tableToMarkdown(tableNode) {
+  function tableToMarkdown(tableNode, domDepth = 0) {
     const rows = Array.from(tableNode.querySelectorAll('tr')).filter(tr => tr.closest('table') === tableNode);
     if (rows.length === 0) return '';
 
@@ -278,7 +320,7 @@ var NtcUtils = (function () {
       cells.forEach(cell => {
         let cellText = '';
         for (const child of cell.childNodes) {
-          cellText += nodeToMarkdown(child, 0);
+          cellText += nodeToMarkdown(child, 0, domDepth + 1);
         }
         cellTexts.push(cellText.trim().replace(/\s+/g, ' ').replace(/\|/g, '\\|'));
       });
@@ -298,7 +340,7 @@ var NtcUtils = (function () {
   /**
    * Convertit un élément ul ou ol en liste Markdown.
    */
-  function listToMarkdown(listNode, isOrdered, depth = 0) {
+  function listToMarkdown(listNode, isOrdered, listIndent = 0, domDepth = 0) {
     const listItems = Array.from(listNode.children).filter(child => child.tagName.toLowerCase() === 'li');
     const mdLines = [];
     let index = 1;
@@ -311,17 +353,17 @@ var NtcUtils = (function () {
         if (child.nodeType === 1 && (child.tagName.toLowerCase() === 'ul' || child.tagName.toLowerCase() === 'ol')) {
           subLists.push(child);
         } else {
-          itemText += nodeToMarkdown(child, depth);
+          itemText += nodeToMarkdown(child, listIndent, domDepth + 1);
         }
       }
 
-      const indent = ' '.repeat(depth);
+      const indent = ' '.repeat(listIndent);
       const prefix = isOrdered ? `${index++}. ` : '- ';
       let line = `${indent}${prefix}${itemText.trim()}`;
 
       // Si l'item contient des sous-listes, on les ajoute sur de nouvelles lignes indentées
       subLists.forEach(subList => {
-        const subMarkdown = listToMarkdown(subList, subList.tagName.toLowerCase() === 'ol', depth + 4);
+        const subMarkdown = listToMarkdown(subList, subList.tagName.toLowerCase() === 'ol', listIndent + 4, domDepth + 1);
         line += '\n' + subMarkdown;
       });
 
@@ -344,7 +386,7 @@ var NtcUtils = (function () {
       try {
         const parser = new DOMParser();
         const doc = parser.parseFromString(html, 'text/html');
-        const markdown = nodeToMarkdown(doc.body);
+        const markdown = nodeToMarkdown(doc.body, 0, 0);
         return markdown
           .replace(/\n{3,}/g, '\n\n') // Max 2 sauts de ligne
           .trim();
@@ -355,12 +397,14 @@ var NtcUtils = (function () {
 
     // Fallback regex d'origine si DOMParser est absent (n'arrive normalement pas)
     return html
-      .replace(/<h([1-6])[^>]*>(.*?)<\/h\1>/gi, (_, n, t) => `${'#'.repeat(+n)} ${t.trim()}`)
+      .replace(/<h([1-6])[^>]*>(.*?)<\/h\1>/gi, (_, n, text) => `${'#'.repeat(+n)} ${text.trim()}`)
       .replace(/<strong[^>]*>(.*?)<\/strong>/gi, '**$1**')
       .replace(/<b[^>]*>(.*?)<\/b>/gi, '**$1**')
       .replace(/<em[^>]*>(.*?)<\/em>/gi, '_$1_')
       .replace(/<i[^>]*>(.*?)<\/i>/gi, '_$1_')
-      .replace(/<a[^>]*href="([^"]*)"[^>]*>(.*?)<\/a>/gi, '[$2]($1)')
+      .replace(/<a[^>]*href="([^"]*)"[^>]*>(.*?)<\/a>/gi, (_, href, text) => (
+        /^(https?:|mailto:)/i.test(href.trim()) ? `[${text}](${href.trim()})` : text
+      ))
       .replace(/<li[^>]*>(.*?)<\/li>/gi, '- $1')
       .replace(/<br\s*\/?>/gi, '\n')
       .replace(/<p[^>]*>(.*?)<\/p>/gi, '$1\n\n')
@@ -375,16 +419,22 @@ var NtcUtils = (function () {
   }
 
   /**
-   * Construit l'URL NotebookLM pointant vers un carnet donné.
+   * Construit l'URL Gemini Notebook pointant vers un carnet donné avec validation stricte.
    *
    * @param  {string} notebookId - Identifiant du carnet.
    * @param  {number} [authuserIndex] - Index du compte Google actif.
    * @returns {string} - URL complète vers le carnet.
    */
   function buildNotebookUrl(notebookId, authuserIndex) {
-    const url = `https://notebook.google.com/notebook/${notebookId}`;
+    const rawId = String(notebookId || '').trim();
+    if (!rawId || /[/?#\\]/.test(rawId)) {
+      return 'https://notebook.google.com/';
+    }
+    const safeId = encodeURIComponent(rawId);
+    const url = `https://notebook.google.com/notebook/${safeId}`;
     if (authuserIndex !== undefined && authuserIndex !== null) {
-      return `${url}?authuser=${authuserIndex}`;
+      const idx = sanitizeAuthuserIndex(authuserIndex);
+      return `${url}?authuser=${idx}`;
     }
     return url;
   }
@@ -393,6 +443,8 @@ var NtcUtils = (function () {
     DEBUG,
     log,
     STORAGE_KEYS,
+    SESSION_KEYS,
+    sanitizeAuthuserIndex,
     t,
     base64ToBlob,
     ntcError,
@@ -401,5 +453,3 @@ var NtcUtils = (function () {
     sanitizeFilename,
   };
 })();
-
-

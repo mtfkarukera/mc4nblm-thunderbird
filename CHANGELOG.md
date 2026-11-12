@@ -5,6 +5,36 @@ Toutes les modifications notables de ce projet sont documentées dans ce fichier
 Le format est basé sur [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/),
 et ce projet adhère au [Versionnage Sémantique](https://semver.org/lang/fr/).
 
+## [1.6.0] — 2026-11-12
+
+### Ajouté
+- **Migration complète vers Manifest V3 (`Thunderbird 128.0+ ESR`)** : passage à une Event Page non persistante pilotée par événements (`runtime.onInstalled`, `runtime.onStartup`, `alarms.onAlarm`, `tabs.onUpdated`, `downloads.onChanged`), stockage éphémère via `browser.storage.session` et migration vers `messenger.messageDisplay.getDisplayedMessages()`.
+- **Consentement opt-in explicite ATN & Déconnexion en un clic** : ajout d'une case de consentement au premier lancement (`ntc_data_consent`, exigée par la politique ATN `data-exfiltration`), déclaration `data_collection_permissions: ["personalCommunications"]` et bouton **Déconnecter** dans la popup pour révoquer localement la session et le consentement à tout moment.
+- **Mise à jour sécurité `jsPDF 4.2.1` & Déclaration officielle `VENDOR.md`** : mise à niveau vers le binaire officiel intact `jsPDF 4.2.1` (corrigeant les vulnérabilités CVE de la branche 2.5.x, SHA-256 vérifié), ajout de `VENDOR.md` à la racine et génération des icônes dédiées `16x16` et `32x32` pour les barres d'outils Thunderbird.
+- **Support des courriels composés uniquement de pièces jointes** : un courriel dépourvu de texte mais comportant des pièces jointes supportées ouvre désormais normalement la popup en grisant uniquement les boutons PDF/Markdown tout en permettant l'import direct des pièces jointes.
+- **Avertissement PDF caractères non latins & Noms des pièces jointes en échec** : détection des glyphes hors Latin-1/CP1252 dans le générateur PDF avec conseil non bloquant vers l'export Markdown UTF-8, et affichage précis des noms de fichiers en cas d'import partiel d'un lot de pièces jointes.
+- **Documentation d'ingénierie** : ajout de `CONTRIBUTING.md` et synchronisation complète en 7 langues (`en`, `fr`, `de`, `es`, `vi`, `ja`, `pt` — 82 clés).
+
+### Modifié
+- **Rebranding `Magic Clipper for Gemini Notebook` & Bouton court `"Notebook"`** : passage intégral à **Gemini Notebook** sur les 7 langues et la documentation, et séparation de `default_label` (**Notebook** sur le bouton d'en-tête) et `default_title` (**Clipper vers Gemini Notebook** en infobulle au survol) dans `manifest.json`.
+- **Barre de session supérieure (`.ready-header`)** : repositionnement du bouton **Déconnecter** et du sélecteur multi-comptes tout en haut de `#state-ready` (au-dessus des métadonnées du courriel), afin d'éviter tout clic réflexe en bas de formulaire tout en conservant le focus clavier initial sur la recherche de carnet.
+- **Protocole RPC Gemini Notebook (`notebook.google.com`)** : passage dynamique de `source-path=/notebook/{notebookId}` sur les écritures de sources (`izAoDd`, `o4cbdc`), alignement du payload d'enregistrement `o4cbdc` à 3 éléments et table de secours MIME par extension dans `uploadFileSource()`.
+- **Générateur PDF (`email_pdf_generator.js`)** : pagination ligne par ligne sur tous les blocs (y compris les longs paragraphes, citations, tableaux et blocs `<pre>`), prise en charge unifiée des `<div>`/`<p>` imbriqués avec images `<img>` inline, fond blanc `#ffffff` appliqué aux PNG transparents avant encodage JPEG et libération immédiate de la mémoire Canvas.
+- **Accessibilité WCAG 2.1 AA & Design UI (`popup.html`, `popup.css`, `popup.js`)** : déclaration `color-scheme: dark / light`, contrastes vérifiés en modes clair et sombre (`>= 4.5:1` texte, `>= 3:1` bordures/focus), grille CSS multilingue pour les métadonnées email, erreurs de validation inline non destructives, désactivation sans saut de layout de la note d'intention, mise à jour dynamique de `aria-valuenow`/`aria-valuetext` sur la barre de progression et gestion fine du focus clavier.
+- **Maintien des quotas natifs Gemini Notebook (`200 Mo` / `500 000 mots`)** : maintien de l'Event Page MV3 active tant que le bouton de téléchargement local est affiché sur l'écran de succès, suivi d'une purge mémoire automatique dès la fermeture de la popup (`PURGE_CAPTURE`) ou après 5 minutes (`ntc-purge-capture`).
+
+### Corrigé
+- ** Suppression de l'API MV2 obsolète `messageDisplayScripts.register()`** qui exigeait la permission invasive `messagesModify` et provoquait un rejet au linter officiel ATN.
+- **Gestion multi-comptes & état des carnets** : vérification de l'existence réelle du dernier carnet mémorisé dans le compte actif après changement de compte Google, et réinitialisation systématique de l'état des pièces jointes entre deux courriels.
+- **Extraction MIME (`extractEmailBodyFromFull`)** : prise en charge des courriels mono-partie sans tableau `parts[]` et exclusion stricte des pièces jointes MIME (`Content-Disposition: attachment`) du corps Markdown.
+- **Cycle de vie de l'onglet d'authentification & Timeouts** : retour automatique à l'écran de connexion si l'utilisateur ferme l'onglet WebContent sans se connecter (`auth_closed`), maintien de l'`AbortController` pendant la lecture complète des flux `.text()`, réinitialisation du timeout de 120 s à chaque progression d'un lot de pièces jointes et révocation sans course des URLs `blob:` via `downloads.onChanged`.
+
+### Sécurité
+- **HTTPS exclusif** : remplacement de `*://*.google.com/*` par `https://*.google.com/*` et `https://*.googleapis.com/*` dans `host_permissions`.
+- **Cloisonnement IPC & Durcissement des entrées** : séparation stricte des messages issus des onglets courriel (`sender.tab`) et de la popup dans `background.js`, filtrage des schémas d'URL dangereux (`javascript:`, `data:`, `vbscript:`) et limite de profondeur DOM dans `htmlToMarkdown()`, durcissement Windows/macOS/Linux de `sanitizeFilename()` et assainissement strict de `authuser` dans `buildNotebookUrl()`.
+
+---
+
 ## [1.5.1] — 2026-07-31
 
 ### 🔴 Correctif Critique — Migration vers notebook.google.com

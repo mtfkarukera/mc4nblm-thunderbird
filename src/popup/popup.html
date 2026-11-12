@@ -3,174 +3,193 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>NotebookLM Clipper</title>
+  <title>Magic Clipper for Gemini Notebook</title>
   <link rel="stylesheet" href="popup.css" />
 </head>
 <body>
+  <main id="popup-app">
 
-  <!-- ═══════════════════════════════════════════════════
-       STATE : auth-required
-       Affiché en premier lancement ou session expirée.
-  ════════════════════════════════════════════════════ -->
-  <section id="state-auth-required" class="state" aria-live="polite">
-    <div class="brand">
-      <img src="/icons/icon.svg" alt="NotebookLM Clipper" class="brand-icon" />
-      <span class="brand-name">NotebookLM Clipper</span>
-    </div>
-    <h1 class="state-heading" data-i18n="stateAuthRequired"></h1>
-    <p class="state-body" data-i18n="stateAuthRequiredBody"></p>
-    <button id="btn-connect" class="btn btn-primary" data-i18n="btnConnect"></button>
-  </section>
-
-  <!-- ═══════════════════════════════════════════════════
-       STATE : loading
-       Affiché pendant les requêtes async.
-  ════════════════════════════════════════════════════ -->
-  <section id="state-loading" class="state hidden" aria-live="polite" aria-busy="true">
-    <h2 class="state-heading visually-hidden" data-i18n="stateLoadingHeading"></h2>
-    <div class="spinner" aria-hidden="true"></div>
-    <p class="state-body" data-i18n="stateLoading"></p>
-  </section>
-
-  <!-- ═══════════════════════════════════════════════════
-       STATE : ready
-       Affichage des métadonnées email + sélecteur carnet + boutons d'import.
-  ════════════════════════════════════════════════════ -->
-  <section id="state-ready" class="state hidden" aria-live="polite">
-    <h2 class="state-heading visually-hidden" data-i18n="stateReadyHeading"></h2>
-
-    <!-- Métadonnées email -->
-    <div class="email-meta glass">
-      <div class="meta-row">
-        <span class="meta-label" data-i18n="labelSubject"></span>
-        <span id="meta-subject" class="meta-value"></span>
+    <!-- ═══════════════════════════════════════════════════
+         STATE : auth-required
+         Affiché au premier lancement, après déconnexion ou session expirée.
+    ════════════════════════════════════════════════════ -->
+    <section id="state-auth-required" class="state">
+      <div class="brand">
+        <img src="/icons/icon@2x.png" alt="" width="32" height="32" class="brand-icon" />
+        <span class="brand-name" data-i18n="extensionName">Magic Clipper for Gemini Notebook</span>
       </div>
-      <div class="meta-row">
-        <span class="meta-label" data-i18n="labelFrom"></span>
-        <span id="meta-from" class="meta-value"></span>
+      <h1 class="state-heading" data-i18n="stateAuthRequired"></h1>
+      <p class="state-body" data-i18n="stateAuthRequiredBody"></p>
+
+      <!-- Consentement opt-in explicite (exigence ATN data-exfiltration, demandé une seule fois) -->
+      <div id="consent-box" class="consent-box glass">
+        <label class="consent-label" for="consent-checkbox">
+          <input type="checkbox" id="consent-checkbox" />
+          <span data-i18n="consentCheckboxLabel"></span>
+        </label>
+        <p class="consent-hint" data-i18n="consentPrivacyHint"></p>
       </div>
-      <div class="meta-row">
-        <span class="meta-label" data-i18n="labelDate"></span>
-        <span id="meta-date" class="meta-value"></span>
+
+      <button id="btn-connect" type="button" class="btn btn-primary" data-i18n="btnConnect" disabled></button>
+    </section>
+
+    <!-- ═══════════════════════════════════════════════════
+         STATE : loading
+         Affiché pendant les requêtes initiales asynchrones.
+    ════════════════════════════════════════════════════ -->
+    <section id="state-loading" class="state state-centered hidden">
+      <h2 class="state-heading visually-hidden" data-i18n="stateLoadingHeading"></h2>
+      <div class="spinner" aria-hidden="true"></div>
+      <p class="state-body" role="status" aria-live="polite" data-i18n="stateLoading"></p>
+    </section>
+
+    <!-- ═══════════════════════════════════════════════════
+         STATE : ready
+         Affichage des métadonnées email + sélecteur carnet + boutons d'import.
+    ════════════════════════════════════════════════════ -->
+    <section id="state-ready" class="state hidden">
+      <h2 class="state-heading visually-hidden" data-i18n="stateReadyHeading"></h2>
+
+      <!-- Barre de session supérieure : sélecteur multi-comptes + déconnexion à l'écart des boutons d'import -->
+      <div class="ready-header">
+        <div id="account-section" class="account-row hidden">
+          <label class="section-label" data-i18n="labelAccount" for="account-select"></label>
+          <select id="account-select" class="input-select"></select>
+        </div>
+        <button id="btn-disconnect" type="button" class="btn btn-ghost btn-disconnect" data-i18n="btnDisconnect"></button>
       </div>
-    </div>
 
-    <!-- Sélecteur de carnet -->
-    <div class="section">
-      <label class="section-label" for="notebook-search" data-i18n="labelNotebook"></label>
-      <div class="notebook-search-row">
-        <input id="notebook-search" type="search"
-               data-i18n-placeholder="placeholderSearch"
-               class="input-search" autocomplete="off"
-               aria-controls="notebook-list" aria-haspopup="listbox" />
-        <button id="btn-create-notebook" class="btn btn-icon"
-                aria-label="" data-i18n-aria-label="btnCreateNotebook">+</button>
+      <!-- Métadonnées email -->
+      <div class="email-meta glass">
+        <div class="meta-row">
+          <span class="meta-label" data-i18n="labelSubject"></span>
+          <span id="meta-subject" class="meta-value"></span>
+        </div>
+        <div class="meta-row">
+          <span class="meta-label" data-i18n="labelFrom"></span>
+          <span id="meta-from" class="meta-value"></span>
+        </div>
+        <div class="meta-row">
+          <span class="meta-label" data-i18n="labelDate"></span>
+          <span id="meta-date" class="meta-value"></span>
+        </div>
       </div>
-      <!-- Création de carnet inline — sprint 2 v1.0.5 (spec §5.3.1).
-           ⚠️ window.prompt est interdit dans les popups TB (AGENTS.md §10). -->
-      <div id="create-notebook-row" class="notebook-search-row hidden">
-        <label for="create-notebook-name" class="visually-hidden" data-i18n="createNotebookLabel"></label>
-        <input id="create-notebook-name" type="text" maxlength="100"
-               data-i18n-placeholder="createNotebookPlaceholder"
-               class="input-search" autocomplete="off" />
-        <button id="btn-create-confirm" class="btn btn-icon"
-                aria-label="" data-i18n-aria-label="btnCreateConfirm" disabled>✓</button>
-        <button id="btn-create-cancel" class="btn btn-icon"
-                aria-label="" data-i18n-aria-label="btnCreateCancel">✕</button>
+
+      <!-- Sélecteur de carnet -->
+      <div class="section">
+        <label class="section-label" for="notebook-search" data-i18n="labelNotebook"></label>
+        <div id="search-notebook-row" class="notebook-search-row">
+          <input id="notebook-search" type="search"
+                 data-i18n-placeholder="placeholderSearch"
+                 class="input-search" autocomplete="off"
+                 aria-controls="notebook-list" />
+          <button id="btn-create-notebook" type="button" class="btn btn-icon"
+                  aria-expanded="false" aria-controls="create-notebook-row"
+                  aria-label="" data-i18n-aria-label="btnCreateNotebook">+</button>
+        </div>
+        <!-- Création de carnet inline (window.prompt est interdit dans les popups TB) -->
+        <div id="create-notebook-row" class="notebook-search-row hidden">
+          <label for="create-notebook-name" class="visually-hidden" data-i18n="createNotebookLabel"></label>
+          <input id="create-notebook-name" type="text" maxlength="100"
+                 data-i18n-placeholder="createNotebookPlaceholder"
+                 aria-describedby="create-notebook-status"
+                 class="input-search" autocomplete="off" />
+          <button id="btn-create-confirm" type="button" class="btn btn-icon"
+                  aria-label="" data-i18n-aria-label="btnCreateConfirm" disabled>✓</button>
+          <button id="btn-create-cancel" type="button" class="btn btn-icon"
+                  aria-label="" data-i18n-aria-label="btnCreateCancel">✕</button>
+        </div>
+        <p id="create-notebook-status" class="create-status hidden" role="status" aria-live="polite"></p>
+        <ul id="notebook-list" class="notebook-list" role="listbox"
+            aria-label="" data-i18n-aria-label="labelNotebook" tabindex="0"></ul>
       </div>
-      <p id="create-notebook-status" class="create-status hidden" aria-live="polite"></p>
-      <ul id="notebook-list" class="notebook-list" role="listbox" aria-label="Notebooks" tabindex="0"></ul>
-    </div>
 
-    <!-- Note d'intention (masquée pour les PJ) -->
-    <div id="intent-wrapper" class="section">
-      <label class="section-label" data-i18n="intentNoteLabelVisible" for="intent-note"></label>
-      <textarea id="intent-note" class="input-textarea"
-                data-i18n-placeholder="intentNotePlaceholder"
-                rows="2"></textarea>
-    </div>
-
-    <!-- Boutons d'import email -->
-    <div id="import-btns" class="btn-group">
-      <button id="btn-pdf" class="btn btn-import" data-i18n="btnPdf" data-format="pdf"></button>
-      <button id="btn-md"  class="btn btn-import" data-i18n="btnMd"  data-format="md"></button>
-    </div>
-
-    <!-- Section Pièces Jointes (conditionnelle) -->
-    <div id="attachments-section" class="section hidden">
-      <label id="attachments-section-label" class="section-label" data-i18n="labelAttachments"></label>
-      <ul id="attachment-list" class="attachment-list" aria-labelledby="attachments-section-label"></ul>
-      <button id="btn-import-attachments" class="btn btn-primary hidden" disabled>
-        <!-- Contenu mis à jour dynamiquement par onAttachmentCheckboxChange() -->
-      </button>
-    </div>
-
-    <!-- Sélecteur de compte -->
-    <div id="account-section" class="section account-row hidden">
-      <label class="section-label" data-i18n="labelAccount" for="account-select"></label>
-      <select id="account-select" class="input-select"></select>
-    </div>
-
-  </section>
-
-  <!-- ═══════════════════════════════════════════════════
-       STATE : capturing
-       Affiché pendant la génération / l'upload.
-  ════════════════════════════════════════════════════ -->
-  <section id="state-capturing" class="state hidden" aria-live="polite" aria-busy="true">
-    <h2 class="state-heading visually-hidden" data-i18n="stateCapturingHeading"></h2>
-    <div class="spinner" aria-hidden="true"></div>
-    <p id="capturing-status" class="state-body" data-i18n="statusCapturing"></p>
-    <div id="batch-progress" class="batch-progress hidden">
-      <div class="progress-bar-track"
-           role="progressbar" aria-label="" data-i18n-aria-label="labelProgressbar"
-           aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
-        <div id="progress-bar-fill" class="progress-bar-fill"></div>
+      <!-- Note d'intention (désactivée visuellement pour les PJ sans saut de mise en page) -->
+      <div id="intent-wrapper" class="section">
+        <label class="section-label" data-i18n="intentNoteLabelVisible" for="intent-note"></label>
+        <textarea id="intent-note" class="input-textarea"
+                  data-i18n-placeholder="intentNotePlaceholder"
+                  rows="2"></textarea>
       </div>
-      <p id="batch-progress-label" class="progress-label"></p>
-    </div>
-  </section>
 
-  <!-- ═══════════════════════════════════════════════════
-       STATE : success
-       Import terminé avec succès.
-  ════════════════════════════════════════════════════ -->
-  <section id="state-success" class="state hidden" aria-live="polite">
-    <h2 class="state-heading visually-hidden" data-i18n="stateSuccessHeading"></h2>
-    <div class="success-circle" aria-hidden="true">
-      <svg class="success-svg" viewBox="0 0 52 52">
-        <circle class="success-svg-circle" cx="26" cy="26" r="25" fill="none" />
-        <path class="success-svg-check" fill="none" d="M14.1 27.2l7.1 7.2 16.7-16.8" />
-      </svg>
-    </div>
-    <p class="state-body" data-i18n="statusSuccess"></p>
-    <div id="warnings-container" class="warnings hidden"></div>
-    <div class="action-row">
-      <!-- [A11Y-B5] Converti de <a> en <button> — un <a> avec href asynchrone n'est pas focusable avant résolution -->
-      <button id="btn-open-notebook" class="btn btn-primary"
-              data-i18n="btnOpenNotebook"></button>
-      <button id="btn-download" class="btn btn-secondary hidden" data-i18n="btnDownload"></button>
-    </div>
-    <button id="btn-new-import" class="btn btn-ghost" data-i18n="btnNewImport"></button>
-  </section>
+      <!-- Message d'erreur de validation inline non destructif (ex: aucun carnet sélectionné) -->
+      <p id="ready-inline-error" class="inline-error hidden" role="alert"></p>
 
-  <!-- ═══════════════════════════════════════════════════
-       STATE : error
-       Affiché en cas d'erreur.
-  ════════════════════════════════════════════════════ -->
-  <section id="state-error" class="state hidden" aria-live="assertive">
-    <h2 class="state-heading visually-hidden" data-i18n="stateErrorHeading"></h2>
-    <div class="error-circle" aria-hidden="true">
-      <svg class="error-svg" viewBox="0 0 52 52">
-        <circle class="error-svg-circle" cx="26" cy="26" r="25" fill="none" />
-        <path class="error-svg-line1" fill="none" d="M16 16l20 20" />
-        <path class="error-svg-line2" fill="none" d="M36 16L16 36" />
-      </svg>
-    </div>
-    <p id="error-message" class="state-body error-text"></p>
-    <button id="btn-reconnect" class="btn btn-primary hidden" data-i18n="btnReconnect"></button>
-    <button id="btn-back" class="btn btn-secondary" data-i18n="btnBack"></button>
-  </section>
+      <!-- Boutons d'import email -->
+      <div id="import-btns" class="btn-group">
+        <button id="btn-pdf" type="button" class="btn btn-import" data-i18n="btnPdf" data-format="pdf"></button>
+        <button id="btn-md"  type="button" class="btn btn-import" data-i18n="btnMd"  data-format="md"></button>
+      </div>
+
+      <!-- Section Pièces Jointes (conditionnelle) -->
+      <div id="attachments-section" class="section hidden">
+        <span id="attachments-section-label" class="section-label" data-i18n="labelAttachments"></span>
+        <ul id="attachment-list" class="attachment-list" aria-labelledby="attachments-section-label"></ul>
+        <button id="btn-import-attachments" type="button" class="btn btn-primary hidden" disabled></button>
+      </div>
+
+    </section>
+
+    <!-- ═══════════════════════════════════════════════════
+         STATE : capturing
+         Affiché pendant la génération / l'upload.
+    ════════════════════════════════════════════════════ -->
+    <section id="state-capturing" class="state state-centered hidden">
+      <h2 class="state-heading visually-hidden" data-i18n="stateCapturingHeading"></h2>
+      <div class="spinner" aria-hidden="true"></div>
+      <p id="capturing-status" class="state-body" role="status" aria-live="polite" data-i18n="statusCapturing"></p>
+      <div id="batch-progress" class="batch-progress hidden">
+        <div id="batch-progress-track" class="progress-bar-track"
+             role="progressbar" aria-label="" data-i18n-aria-label="labelProgressbar"
+             aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+          <div id="progress-bar-fill" class="progress-bar-fill"></div>
+        </div>
+        <p id="batch-progress-label" class="progress-label" role="status" aria-live="polite"></p>
+      </div>
+    </section>
+
+    <!-- ═══════════════════════════════════════════════════
+         STATE : success
+         Import terminé avec succès.
+    ════════════════════════════════════════════════════ -->
+    <section id="state-success" class="state hidden">
+      <h2 class="state-heading visually-hidden" data-i18n="stateSuccessHeading"></h2>
+      <div class="success-circle" aria-hidden="true">
+        <svg class="success-svg" viewBox="0 0 52 52">
+          <circle class="success-svg-circle" cx="26" cy="26" r="25" fill="none" />
+          <path class="success-svg-check" fill="none" d="M14.1 27.2l7.1 7.2 16.7-16.8" />
+        </svg>
+      </div>
+      <p class="state-body" data-i18n="statusSuccess"></p>
+      <div id="warnings-container" class="warnings hidden" role="status" aria-live="polite"></div>
+      <div class="action-row">
+        <button id="btn-open-notebook" type="button" class="btn btn-primary"
+                data-i18n="btnOpenNotebook"></button>
+        <button id="btn-download" type="button" class="btn btn-secondary hidden"
+                data-i18n="btnDownload"></button>
+      </div>
+      <button id="btn-new-import" type="button" class="btn btn-ghost" data-i18n="btnNewImport"></button>
+    </section>
+
+    <!-- ═══════════════════════════════════════════════════
+         STATE : error
+         Affiché en cas d'erreur bloquante.
+    ════════════════════════════════════════════════════ -->
+    <section id="state-error" class="state hidden">
+      <h2 class="state-heading visually-hidden" data-i18n="stateErrorHeading"></h2>
+      <div class="error-circle" aria-hidden="true">
+        <svg class="error-svg" viewBox="0 0 52 52">
+          <circle class="error-svg-circle" cx="26" cy="26" r="25" fill="none" />
+          <path class="error-svg-line1" fill="none" d="M16 16l20 20" />
+          <path class="error-svg-line2" fill="none" d="M36 16L16 36" />
+        </svg>
+      </div>
+      <p id="error-message" class="state-body error-text" role="alert"></p>
+      <button id="btn-reconnect" type="button" class="btn btn-primary hidden" data-i18n="btnReconnect"></button>
+      <button id="btn-back" type="button" class="btn btn-secondary" data-i18n="btnBack"></button>
+    </section>
+
+  </main>
 
   <script src="/src/popup/pre_loader.js"></script>
   <script src="/src/shared/utils.js"></script>

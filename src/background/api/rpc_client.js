@@ -1,7 +1,8 @@
-// rpc_client.js — Client RPC NotebookLM (Thunderbird MV2)
-// NotebookLM Clipper for Thunderbird
+// rpc_client.js — Client RPC Gemini Notebook (Thunderbird 128+ ESR — MV3)
+// Magic Clipper for Gemini Notebook
+// Auteur : MTF Karukera
 //
-// ⚠️ Les fonctions parseChunkedResponse et extractRpcResult sont la
+// Les fonctions parseChunkedResponse et extractRpcResult sont la
 // traduction exacte de decoder.py — NE JAMAIS les réécrire.
 //
 // Référence : API-REFERENCE.md §2, §3, §4, §5, §6
@@ -317,14 +318,75 @@ function buildRequestBody(rpcRequest, csrfToken) {
   return `${body}&`;
 }
 
-function buildQueryString(rpcId, authuserIndex) {
+function buildQueryString(rpcId, authuserIndex, sourcePath = '/') {
+  const safeIdx = NtcUtils.sanitizeAuthuserIndex(authuserIndex);
   return new URLSearchParams({
     rpcids: rpcId,
-    'source-path': '/',
+    'source-path': sourcePath || '/',
     hl: 'en',
     rt: 'c',
-    authuser: String(authuserIndex),
+    authuser: String(safeIdx),
   }).toString();
+}
+
+/** Hôtes HTTPS explicitement autorisés pour les sessions d'upload Scotty */
+const ALLOWED_UPLOAD_HOSTS = new Set([
+  'notebook.google.com',
+  'notebooklm.google.com',
+  'upload.googleapis.com',
+]);
+
+/** Table de correspondance extension -> MIME pour stabiliser le handshake Scotty */
+const EXTENSION_MIME_FALLBACKS = {
+  '.pdf': 'application/pdf',
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.webp': 'image/webp',
+  '.gif': 'image/gif',
+  '.bmp': 'image/bmp',
+  '.tiff': 'image/tiff',
+  '.heic': 'image/heic',
+  '.heif': 'image/heif',
+  '.avif': 'image/avif',
+  '.md': 'text/markdown',
+  '.markdown': 'text/markdown',
+  '.txt': 'text/plain',
+  '.csv': 'text/csv',
+  '.mp3': 'audio/mpeg',
+  '.wav': 'audio/wav',
+  '.ogg': 'audio/ogg',
+  '.m4a': 'audio/mp4',
+  '.aac': 'audio/aac',
+  '.flac': 'audio/flac',
+  '.opus': 'audio/opus',
+  '.mp4': 'video/mp4',
+  '.mov': 'video/quicktime',
+  '.avi': 'video/x-msvideo',
+  '.mkv': 'video/x-matroska',
+  '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  '.epub': 'application/epub+zip',
+};
+
+function resolveUploadContentType(filename, explicitType, blobType) {
+  for (const candidate of [explicitType, blobType]) {
+    if (candidate && typeof candidate === 'string') {
+      const normalized = candidate.split(';')[0].trim().toLowerCase();
+      if (normalized && normalized !== 'application/octet-stream') {
+        return normalized;
+      }
+    }
+  }
+  if (typeof filename === 'string') {
+    const dotIdx = filename.lastIndexOf('.');
+    if (dotIdx !== -1) {
+      const ext = filename.slice(dotIdx).toLowerCase();
+      if (EXTENSION_MIME_FALLBACKS[ext]) {
+        return EXTENSION_MIME_FALLBACKS[ext];
+      }
+    }
+  }
+  return 'application/octet-stream';
 }
 
 // ─────────────────────────────────────────────
@@ -413,7 +475,7 @@ async function fetchWithRetry(url, options, maxRetries = 3) {
 // REQUÊTE GÉNÉRIQUE batchexecute
 // ─────────────────────────────────────────────
 
-async function batchExecute(rpcId, params, csrfToken, authuserIndex) {
+async function batchExecute(rpcId, params, csrfToken, authuserIndex, sourcePath = '/') {
   _lastError = '';
   _lastBytesLength = -1;
   _lastChunksLength = -1;
@@ -422,14 +484,15 @@ async function batchExecute(rpcId, params, csrfToken, authuserIndex) {
   const rpcReq = encodeRpcRequest(rpcId, params);
   NtcUtils.log('batchExecute', rpcId, '— params length:', JSON.stringify(params).length);
   const body = buildRequestBody(rpcReq, csrfToken);
-  const qs = buildQueryString(rpcId, authuserIndex);
+  const qs = buildQueryString(rpcId, authuserIndex, sourcePath);
   const url = `${NBLM_BATCH_URL}?${qs}`;
 
-  // AbortController — timeout 30s pour les appels RPC
+  // AbortController — timeout 30s couvrant la requête ET la lecture complète du flux
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 30000);
 
   let resp;
+  let bytes;
   try {
     resp = await fetchWithRetry(url, {
       method: 'POST',
@@ -443,27 +506,31 @@ async function batchExecute(rpcId, params, csrfToken, authuserIndex) {
       body,
       signal: controller.signal,
     });
-    clearTimeout(timeoutId);
+
+    NtcUtils.log('batchExecute', rpcId, '→ HTTP', resp.status, 'ok?', resp.ok);
+
+    if (!resp.ok) {
+      if (resp.status === 401 || resp.status === 403) {
+        throw NtcUtils.ntcError('AUTH_EXPIRED', 'AUTH_EXPIRED');
+      }
+      throw new Error(`HTTP ${resp.status}`);
+    }
+
+    if (resp.url && resp.url.includes('accounts.google.com')) {
+      throw NtcUtils.ntcError('AUTH_EXPIRED', 'AUTH_EXPIRED');
+    }
+
+    const buffer = await resp.arrayBuffer();
+    bytes = new Uint8Array(buffer);
+    _lastBytesLength = bytes.length;
   } catch (fetchErr) {
-    clearTimeout(timeoutId);
     if (fetchErr.name === 'AbortError' || fetchErr.code === 'TIMEOUT') {
       throw NtcUtils.ntcError('TIMEOUT', 'TIMEOUT');
     }
     throw fetchErr;
+  } finally {
+    clearTimeout(timeoutId);
   }
-
-  NtcUtils.log('batchExecute', rpcId, '→ HTTP', resp.status, 'ok?', resp.ok);
-
-  if (!resp.ok) {
-    if (resp.status === 401 || resp.status === 403) {
-      throw NtcUtils.ntcError('AUTH_EXPIRED', 'AUTH_EXPIRED');
-    }
-    throw new Error(`HTTP ${resp.status}`);
-  }
-
-  const buffer = await resp.arrayBuffer();
-  const bytes = new Uint8Array(buffer);
-  _lastBytesLength = bytes.length;
 
   // Mettre à jour _lastRawText pour le diagnostic (en décodant en UTF-8)
   try {
@@ -471,6 +538,12 @@ async function batchExecute(rpcId, params, csrfToken, authuserIndex) {
   } catch (err) {
     _lastRawText = '(échec décodage UTF-8)';
     _lastError = 'dec_err: ' + err.message;
+  }
+
+  // Détecter une page HTML de reconnexion renvoyée en HTTP 200 (évite tout faux positif null)
+  if (/^\s*<(?:!doctype\s+html|html)\b/i.test(_lastRawText)) {
+    _lastRawText = '';
+    throw NtcUtils.ntcError('AUTH_EXPIRED', 'AUTH_EXPIRED');
   }
 
   try {
@@ -494,7 +567,7 @@ async function batchExecute(rpcId, params, csrfToken, authuserIndex) {
 // ─────────────────────────────────────────────
 
 /**
- * Liste les carnets NotebookLM.
+ * Liste les carnets Gemini Notebook.
  * RPC ID : wXbhsf (voir API-REFERENCE.md §1)
  *
  * Les entrées diagnostic `__diag__` ne sont générées qu'en mode
@@ -510,8 +583,11 @@ async function listNotebooks(csrfToken, authuserIndex) {
   NtcUtils.log('listNotebooks — csrfToken présent?', !!csrfToken, 'authuser:', authuserIndex);
   const result = await batchExecute('wXbhsf', [null, 1, null, [2]], csrfToken, authuserIndex);
 
-  // ── Résultat null ou vide : compte sans carnet (cas légitime) ───────────
+  // ── Résultat null ou vide : vérifier qu'il ne s'agit pas d'un échec de décodage ──
   if (!result || (Array.isArray(result) && result.length === 0)) {
+    if (_lastError || (_lastBytesLength > 0 && _lastChunksLength === 0)) {
+      throw NtcUtils.ntcError('API_CHANGED', 'API_CHANGED');
+    }
     if (NtcUtils.DEBUG) {
       const raw = _lastRawText.slice(0, 80).replace(/\r?\n/g, '↵');
       const diagTitle = `🔍 B:${_lastBytesLength} C:${_lastChunksLength} Err:${_lastError} Raw:${raw}`;
@@ -603,7 +679,7 @@ async function listNotebooks(csrfToken, authuserIndex) {
 }
 
 /**
- * Crée un nouveau carnet NotebookLM.
+ * Crée un nouveau carnet Gemini Notebook.
  * RPC ID : CCqFvf (voir API-REFERENCE.md §1)
  *
  * @param {string} csrfToken
@@ -652,9 +728,19 @@ async function createNotebook(csrfToken, title, authuserIndex) {
 async function addTextSource(csrfToken, text, title, notebookId, authuserIndex) {
   const params = [
     [[null, [title, text], null, null, null, null, null, null]],
-    notebookId, [2], null, null
+    notebookId, [2], null, null,
   ];
-  return await batchExecute('izAoDd', params, csrfToken, authuserIndex);
+  const result = await batchExecute(
+    'izAoDd',
+    params,
+    csrfToken,
+    authuserIndex,
+    `/notebook/${notebookId}`
+  );
+  if (result === null || !Array.isArray(result)) {
+    throw NtcUtils.ntcError('API_CHANGED', 'API_CHANGED');
+  }
+  return result;
 }
 
 // addUrlSource() supprimé — revue de code 2026-06-10 (pipeline URL retiré de la v1).
@@ -669,29 +755,39 @@ async function addTextSource(csrfToken, text, title, notebookId, authuserIndex) 
  * @param {string} filename
  * @param {string} notebookId
  * @param {number} authuserIndex
+ * @param {string} [contentType]
  */
 async function uploadFileSource(csrfToken, fileBlob, filename, notebookId, authuserIndex, contentType) {
-  // Étape 1 — Register (RPC o4cbdc)
+  const safeIdx = NtcUtils.sanitizeAuthuserIndex(authuserIndex);
+  const resolvedMime = resolveUploadContentType(filename, contentType, fileBlob.type);
+
+  // Étape 1 — Register (RPC o4cbdc — tuple unifié à 3 éléments Gemini / NotebookLM 2026)
   const registerParams = [
     [[filename]],
-    notebookId, [2],
-    [1, null, null, null, null, null, null, null, null, null, [1]]
+    notebookId,
+    [2, null, null, [1, null, null, null, null, null, null, null, null, null, [1]]],
   ];
-  const registerResult = await batchExecute('o4cbdc', registerParams, csrfToken, authuserIndex);
+  const registerResult = await batchExecute(
+    'o4cbdc',
+    registerParams,
+    csrfToken,
+    safeIdx,
+    `/notebook/${notebookId}`
+  );
   const sourceId = extractRegisterFileSourceId(registerResult, filename);
 
   if (!sourceId) {
     throw NtcUtils.ntcError('API_CHANGED', 'API_CHANGED');
   }
 
-  // Étape 2 — Start upload (timeout 120s pour les fichiers volumineux)
+  // Étape 2 — Start upload (timeout 120s couvrant la réponse Scotty)
   const startController = new AbortController();
   const startTimeoutId = setTimeout(() => startController.abort(), 120000);
 
   let startResp;
   try {
     startResp = await fetchWithRetry(
-      `https://notebook.google.com/upload/_/?authuser=${authuserIndex}`,
+      `https://notebook.google.com/upload/_/?authuser=${safeIdx}`,
       {
         method: 'POST',
         credentials: 'include',
@@ -699,12 +795,12 @@ async function uploadFileSource(csrfToken, fileBlob, filename, notebookId, authu
           'Accept': '*/*',
           'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8',
           'Origin': 'https://notebook.google.com',
-          'Referer': 'https://notebook.google.com/',
+          'Referer': `https://notebook.google.com/notebook/${encodeURIComponent(notebookId)}`,
           'x-goog-upload-command': 'start',
           'x-goog-upload-protocol': 'resumable',
           'x-goog-upload-header-content-length': String(fileBlob.size),
-          'x-goog-upload-header-content-type': contentType || fileBlob.type || 'application/octet-stream',
-          'x-goog-authuser': String(authuserIndex),
+          'x-goog-upload-header-content-type': resolvedMime,
+          'x-goog-authuser': String(safeIdx),
         },
         body: JSON.stringify({
           PROJECT_ID: notebookId,
@@ -714,29 +810,32 @@ async function uploadFileSource(csrfToken, fileBlob, filename, notebookId, authu
         signal: startController.signal,
       }
     );
-    clearTimeout(startTimeoutId);
+    await startResp.text().catch(() => '');
   } catch (startErr) {
-    clearTimeout(startTimeoutId);
     if (startErr.name === 'AbortError' || startErr.code === 'TIMEOUT') {
       throw NtcUtils.ntcError('TIMEOUT', 'TIMEOUT');
     }
     throw startErr;
+  } finally {
+    clearTimeout(startTimeoutId);
   }
 
-  // P1.5 — Vérification auth sur l'étape start
+  // Vérification auth et statut HTTP sur l'étape start
   if (startResp.status === 401 || startResp.status === 403) {
     throw NtcUtils.ntcError('AUTH_EXPIRED', 'AUTH_EXPIRED');
   }
+  if (!startResp.ok) {
+    throw NtcUtils.ntcError('UPLOAD_SESSION_MISSING', 'UPLOAD_SESSION_MISSING');
+  }
 
-  // P1.4 — Validation du domaine uploadUrl
+  // Validation stricte de l'URL de session uploadUrl (HTTPS + hôtes autorisés uniquement)
   const uploadUrl = startResp.headers.get('x-goog-upload-url');
   if (!uploadUrl) {
     throw NtcUtils.ntcError('UPLOAD_SESSION_MISSING', 'UPLOAD_SESSION_MISSING');
   }
   try {
     const parsedUrl = new URL(uploadUrl);
-    if (parsedUrl.protocol !== 'https:' ||
-        !(parsedUrl.hostname.endsWith('.google.com') || parsedUrl.hostname.endsWith('.googleapis.com'))) {
+    if (parsedUrl.protocol !== 'https:' || !ALLOWED_UPLOAD_HOSTS.has(parsedUrl.hostname)) {
       throw NtcUtils.ntcError('UPLOAD_SESSION_MISSING', 'UPLOAD_SESSION_MISSING');
     }
   } catch (urlErr) {
@@ -744,9 +843,9 @@ async function uploadFileSource(csrfToken, fileBlob, filename, notebookId, authu
     throw NtcUtils.ntcError('UPLOAD_SESSION_MISSING', 'UPLOAD_SESSION_MISSING');
   }
 
-  // Étape 3 — Upload + finalize (timeout 120s)
+  // Étape 3 — Upload + finalize (timeout 180s pour les fichiers jusqu'à 200 Mo)
   const finalizeController = new AbortController();
-  const finalizeTimeoutId = setTimeout(() => finalizeController.abort(), 120000);
+  const finalizeTimeoutId = setTimeout(() => finalizeController.abort(), 180000);
 
   let finalizeResp;
   try {
@@ -757,30 +856,35 @@ async function uploadFileSource(csrfToken, fileBlob, filename, notebookId, authu
         'Accept': '*/*',
         'Content-Type': 'application/x-www-form-urlencoded;charset=utf-8',
         'Origin': 'https://notebook.google.com',
-        'Referer': 'https://notebook.google.com/',
+        'Referer': `https://notebook.google.com/notebook/${encodeURIComponent(notebookId)}`,
         'x-goog-upload-command': 'upload, finalize',
         'x-goog-upload-offset': '0',
-        'x-goog-authuser': String(authuserIndex),
+        'x-goog-authuser': String(safeIdx),
       },
       body: fileBlob,
       signal: finalizeController.signal,
     });
-    clearTimeout(finalizeTimeoutId);
+    await finalizeResp.text().catch(() => '');
   } catch (finErr) {
-    clearTimeout(finalizeTimeoutId);
     if (finErr.name === 'AbortError' || finErr.code === 'TIMEOUT') {
       throw NtcUtils.ntcError('TIMEOUT', 'TIMEOUT');
     }
     throw finErr;
+  } finally {
+    clearTimeout(finalizeTimeoutId);
   }
 
-  // P1.5 — Vérification auth sur l'étape finalize
   if (finalizeResp.status === 401 || finalizeResp.status === 403) {
     throw NtcUtils.ntcError('AUTH_EXPIRED', 'AUTH_EXPIRED');
   }
 
   if (!finalizeResp.ok) {
     throw new Error(`HTTP ${finalizeResp.status}`);
+  }
+
+  const uploadStatus = finalizeResp.headers.get('x-goog-upload-status');
+  if (uploadStatus && uploadStatus.toLowerCase() !== 'final') {
+    throw NtcUtils.ntcError('UPLOAD_SESSION_MISSING', 'UPLOAD_SESSION_MISSING');
   }
 }
 
@@ -793,7 +897,7 @@ function getLastDebugInfo() {
   };
 }
 
-// Exposition globale (MV2 — background scripts partagent le même scope global)
+// Exposition globale sur l'Event Page MV3
 window.NtcRpc = {
   listNotebooks,
   createNotebook,
